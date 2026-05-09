@@ -12,7 +12,8 @@
 		"esModuleInterop": true,
 		"skipLibCheck": true,
 		"resolveJsonModule": true,
-		"types": ["bun"],
+		"types": ["bun", "node"],
+		"allowImportingTsExtensions": true,
 		"noEmit": true
 	},
 	"include": ["hooks/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
