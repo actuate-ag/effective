@@ -8,12 +8,12 @@
  */
 
 import { BunRuntime, BunServices } from '@effect/platform-bun';
-import { Effect, FileSystem, HashSet, Path, pipe, Schema } from 'effect';
+import { Effect, FileSystem, HashSet, Path, Schema } from 'effect';
 import * as Option from 'effect/Option';
 
 import { formatFeedback } from '../src/audit/format/claude-hook.ts';
+import { matchedPatternsForFile } from '../src/audit/runner.ts';
 import { loadPatterns } from '../src/patterns/load.ts';
-import { patternMatches } from '../src/patterns/match.ts';
 
 class HookInput extends Schema.Class<HookInput>('HookInput')({
 	cwd: Schema.optionalKey(Schema.String),
@@ -89,17 +89,7 @@ const program = Effect.gen(function*() {
 
 	const patternsDir = yield* resolvePatternsDir;
 	const patterns = yield* loadPatterns(patternsDir);
-
-	const matched = yield* Effect.forEach(patterns, (p) =>
-		pipe(
-			patternMatches(p, toolName, filePath, source),
-			Effect.map((isMatch) => (isMatch ? Option.some(p) : Option.none())),
-		)).pipe(
-			Effect.map((opts) =>
-				opts.flatMap((o) => Option.match(o, { onNone: () => [], onSome: (v) => [v] }))
-			),
-		);
-
+	const matched = yield* matchedPatternsForFile(patterns, toolName, filePath, source);
 	if (matched.length === 0) return;
 
 	const additionalContext = formatFeedback(matched, filePath);

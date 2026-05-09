@@ -11,6 +11,7 @@ for the Claude Code surface (skills, hooks, slash commands).
 - [What it ships](#what-it-ships)
 - [How it works](#how-it-works)
 - [Install](#install)
+- [The audit CLI](#the-audit-cli)
 - [Skill catalog](#skill-catalog) (35)
 - [Pattern catalog](#pattern-catalog) (46)
 - [Configuration](#configuration)
@@ -35,8 +36,12 @@ for the Claude Code surface (skills, hooks, slash commands).
   suggested skill.
 - **A short CLAUDE.md fragment** to drop into a project so Claude knows to
   invoke `effect-*` skills before writing Effect code.
-- **An `/effect-status` slash command** that reports the local reference-clone
-  state and which catalogs are wired up.
+- **An `effect-audit` CLI** that runs the same pattern catalog against
+  existing code (one file, a directory, or a whole repo) — for one-shot
+  cleanups and CI gating. The CLI core is shared with the PostToolUse hook,
+  so any pattern that fires live also fires on audit.
+- **`/effect-status` and `/effect-audit` slash commands** that report
+  reference-clone state and run the audit CLI within a session.
 
 ## How it works
 
@@ -128,6 +133,52 @@ claude plugin install <path-or-url>/claude-code-effect
 The plugin's `hooks/hooks.json` wires both hooks; `skills/` is auto-discovered.
 You can still run `./scripts/install-user.sh` afterwards just to set up the
 shared reference clone + shell rc env var.
+
+---
+
+## The audit CLI
+
+`effect-audit` runs the pattern catalog against existing code. Same detector
+core as the PostToolUse hook, different surface: many files, structured
+output, CI-friendly exit codes.
+
+### Quick start
+
+```bash
+effect-audit                            # audit . (cwd)
+effect-audit src/                       # audit a directory
+effect-audit src/Foo.ts src/Bar.ts      # audit specific files
+effect-audit --format json              # JSON output for tooling
+effect-audit --min-severity high        # filter to high/critical
+effect-audit --exit-on critical         # CI gate: non-zero on critical
+```
+
+### Defaults
+
+| | |
+|---|---|
+| Recursion | `.ts`/`.tsx` only, recursive |
+| `.gitignore` | honored via `git ls-files --cached --others --exclude-standard` when inside a git repo; falls back to a tree walk that hard-skips `.git/`, `node_modules/`, `.references/` |
+| Symlinks | skipped (so `.references/effect-v4` doesn't pull in the entire Effect source) |
+| Format | human-readable summary + per-match lines |
+| `--min-severity` | `warning` (drops the 6 noisy `info` patterns by default) |
+| `--exit-on` | `critical` (CI exits non-zero on critical hits only) |
+
+### CI integration
+
+```yaml
+# .github/workflows/effect-audit.yml
+- run: bun run audit:effect              # if installed via --project
+# or
+- run: bun run scripts/audit.ts --exit-on critical  # in-repo
+```
+
+### Inside a Claude Code session
+
+Run `/effect-audit` and Claude will execute the CLI, read the matches, and
+either fix them or surface them for your input. Each match includes the
+suggested `effect-*` skill, so Claude knows to load the right context
+before writing fixes.
 
 ---
 

@@ -12,6 +12,7 @@
 #   ~/.claude/CLAUDE.md                 (fragment appended, idempotent)
 #   ~/.claude/settings.json             (SessionStart + PostToolUse hooks merged)
 #   ~/.references/effect-v4/            (canonical clone, shared across projects)
+#   ~/.local/bin/effect-audit           (symlink to <repo>/bin/effect-audit)
 #   $SHELL_RC                           (CLAUDE_CODE_EFFECT_REFERENCE_DIR export)
 #
 # Project mode (--project [DIR]):
@@ -20,6 +21,7 @@
 #   <DIR>/.claude/settings.json         (SessionStart + PostToolUse hooks merged)
 #   <DIR>/.references/effect-v4/        (per-project clone, lazy via SessionStart)
 #   <DIR>/.gitignore                    (.references/ added if missing)
+#   <DIR>/package.json                  (audit:effect script merged in)
 #
 # All file operations are idempotent. --uninstall reverses everything except
 # the canonical / per-project reference clones (those are data; rm -rf if you
@@ -252,6 +254,53 @@ gitignore_install() {
 	echo "  .references/ appended to $gi"
 }
 
+cli_install_user() {
+	local bin_dir="$HOME/.local/bin"
+	local link="$bin_dir/effect-audit"
+	mkdir -p "$bin_dir"
+	if [[ -L "$link" && "$(readlink "$link")" == "$REPO_ROOT/bin/effect-audit" ]]; then
+		echo "  effect-audit already symlinked at $link"
+	elif [[ -e "$link" || -L "$link" ]]; then
+		echo "  skip: $link already exists (not a claude-code-effect symlink)" >&2
+	else
+		ln -s "$REPO_ROOT/bin/effect-audit" "$link"
+		echo "  symlinked $link -> $REPO_ROOT/bin/effect-audit"
+	fi
+	if ! echo ":$PATH:" | grep -q ":$bin_dir:"; then
+		echo "  note: $bin_dir is not on your PATH; add it to your shell rc to use 'effect-audit' directly" >&2
+	fi
+}
+
+cli_uninstall_user() {
+	local link="$HOME/.local/bin/effect-audit"
+	if [[ -L "$link" && "$(readlink "$link")" == "$REPO_ROOT/bin/effect-audit" ]]; then
+		rm "$link"
+		echo "  removed $link"
+	else
+		echo "  (no claude-code-effect effect-audit symlink at $link)"
+	fi
+}
+
+cli_install_project() {
+	local pkg="$project_dir/package.json"
+	if [[ ! -f "$pkg" ]]; then
+		echo "  skip: $pkg does not exist" >&2
+		return
+	fi
+	# Add scripts['audit:effect'] = 'effect-audit'. Idempotent: skip if already
+	# present and pointing at effect-audit (or the in-repo bun script).
+	bun run "$REPO_ROOT/scripts/lib/manage-package-script.ts" install "$pkg" \
+		"$REPO_ROOT" >/dev/null
+	echo "  audit:effect script merged into $pkg"
+}
+
+cli_uninstall_project() {
+	local pkg="$project_dir/package.json"
+	[[ -f "$pkg" ]] || { echo "  (no $pkg)"; return; }
+	bun run "$REPO_ROOT/scripts/lib/manage-package-script.ts" uninstall "$pkg" >/dev/null
+	echo "  audit:effect script stripped from $pkg"
+}
+
 # --- execute ---
 echo "claude-code-effect: ${uninstall:+un}install ($mode mode)"
 echo "  repo:   $REPO_ROOT"
@@ -266,8 +315,13 @@ if [[ "$uninstall" == "1" ]]; then
 	echo "[3] stripping hook entries from settings.json"
 	settings_uninstall
 	if [[ "$mode" == "user" ]]; then
-		echo "[4] removing shared reference export from shell rc"
+		echo "[4] removing effect-audit CLI symlink"
+		cli_uninstall_user
+		echo "[5] removing shared reference export from shell rc"
 		shared_ref_uninstall
+	else
+		echo "[4] removing audit:effect from package.json"
+		cli_uninstall_project
 	fi
 	echo
 	echo "uninstalled. The reference clone (if any) is preserved as data;"
@@ -282,11 +336,15 @@ claude_md_install
 echo "[3] merging hook entries into settings.json"
 settings_install
 if [[ "$mode" == "user" ]]; then
-	echo "[4] setting up shared reference clone"
+	echo "[4] symlinking effect-audit CLI into ~/.local/bin"
+	cli_install_user
+	echo "[5] setting up shared reference clone"
 	shared_ref_install
 else
 	echo "[4] adding .references/ to .gitignore"
 	gitignore_install
+	echo "[5] merging audit:effect into package.json"
+	cli_install_project
 fi
 
 echo
