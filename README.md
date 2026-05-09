@@ -281,8 +281,43 @@ falls back to `4.0.0-beta.59`. The detected version is used as the
 
 ### Reference clone location
 
-Hardcoded to `<cwd>/.references/effect-v4/`. The marker file is
+Default: `<cwd>/.references/effect-v4/` per project. The marker file is
 `<cwd>/.references/effect-v4/.claude-code-effect-version`.
+
+#### Shared reference clone (recommended when you align Effect versions)
+
+If every project on your machine pins the same `effect` version, point them
+all at one canonical clone instead of carrying a separate ~50–80 MB shallow
+clone per project.
+
+```sh
+./scripts/setup-shared.sh                  # default ~/.local/share/claude-code-effect/effect-v4
+./scripts/setup-shared.sh /custom/path     # or anywhere you want
+```
+
+The script:
+
+1. Appends `export CLAUDE_CODE_EFFECT_REFERENCE_DIR="<path>"` to your shell rc
+   (idempotently — safe to re-run). Supports zsh and bash.
+2. Warms the canonical clone immediately at the default Effect version.
+
+After that, the SessionStart hook in any project sees the env var, ensures
+the canonical clone exists at the right tag, and creates a symlink from
+`<project>/.references/effect-v4` → the canonical location. Skill bodies and
+the CLAUDE.md fragment reference `.references/effect-v4/...` literally, so
+the symlink keeps them transparent.
+
+**Version-mismatch policy in shared mode.** If a project pins a *different*
+`effect` version than the canonical clone, the hook **does not** re-clone
+(that would hose every other project pointing at it). It writes a one-line
+warning to stderr and continues using the existing clone. Either align
+versions across your projects, or unset `CLAUDE_CODE_EFFECT_REFERENCE_DIR`
+in that one project to fall back to per-project mode.
+
+**Existing per-project directory blocks the symlink.** If a project already
+has a real `<project>/.references/effect-v4` directory (e.g. from prior
+per-project use), the hook refuses to clobber it. Remove it first:
+`rm -rf <project>/.references/effect-v4` and re-run the SessionStart hook.
 
 ### Patterns directory override
 
