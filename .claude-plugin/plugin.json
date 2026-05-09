@@ -1,0 +1,9 @@
+{
+	"name": "claude-code-effect",
+	"version": "0.0.1",
+	"description": "Skills, hooks, and guidance to help Claude Code write correct, idiomatic Effect v4 TypeScript.",
+	"author": {
+		"name": "Actuate"
+	},
+	"keywords": ["effect", "effect-ts", "typescript", "skills", "hooks"]
+}
