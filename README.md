@@ -11,7 +11,7 @@ for the Claude Code surface (skills, hooks, slash commands).
 - [What it ships](#what-it-ships)
 - [How it works](#how-it-works)
 - [Install](#install)
-- [Skill catalog](#skill-catalog) (42)
+- [Skill catalog](#skill-catalog) (35)
 - [Pattern catalog](#pattern-catalog) (46)
 - [Configuration](#configuration)
 - [Development](#development)
@@ -21,8 +21,8 @@ for the Claude Code surface (skills, hooks, slash commands).
 
 ## What it ships
 
-- **42 `effect-*` skills** covering AI, schema, layers, services, errors, config,
-  observability, streaming, persistence, networking, CLI, MCP, testing, React,
+- **35 `effect-*` skills** covering schema, layers, services, errors, config,
+  observability, streaming, persistence, networking, CLI, testing, React,
   and migration. Discoverable via Claude Code's progressive-disclosure skill
   mechanism — Claude invokes the relevant skill on demand based on the task.
 - **A `SessionStart` hook** that maintains a shallow clone of
@@ -80,7 +80,7 @@ For developers who write Effect across multiple repos.
 
 | Target | Action |
 |---|---|
-| `~/.claude/skills/effect-*` | symlink the 42 skills |
+| `~/.claude/skills/effect-*` | symlink the 35 skills |
 | `~/.claude/CLAUDE.md` | append the Effect fragment (idempotent, marker-guarded) |
 | `~/.claude/settings.json` | merge `SessionStart` + `PostToolUse` hook entries (preserves existing settings) |
 | `~/.references/effect-v4/` | shallow-clone Effect-TS/effect-smol once at the default version |
@@ -101,7 +101,7 @@ For scoping everything to a single repo.
 
 | Target | Action |
 |---|---|
-| `<DIR>/.claude/skills/effect-*` | symlink the 42 skills |
+| `<DIR>/.claude/skills/effect-*` | symlink the 35 skills |
 | `<DIR>/CLAUDE.md` | append the Effect fragment (idempotent, marker-guarded) |
 | `<DIR>/.claude/settings.json` | merge `SessionStart` + `PostToolUse` hook entries |
 | `<DIR>/.gitignore` | append `.references/` if missing |
@@ -133,19 +133,8 @@ shared reference clone + shell rc env var.
 
 ## Skill catalog
 
-42 skills, ported from `pi-effect-harness` with description fields tuned for
+35 skills, ported from `pi-effect-harness` with description fields tuned for
 Claude Code autoload triggering.
-
-### AI / LLM (6)
-
-| Skill | Description |
-|---|---|
-| `effect-ai-chat` | Build stateful AI chat sessions with the Effect Chat module — multi-turn conversations, agentic tool-calling loops, persistence, streaming, structured object generation. |
-| `effect-ai-language-model` | The Effect AI `LanguageModel` service — text generation, structured output, streaming, tool calling, schema-validated responses. |
-| `effect-ai-prompt` | The complete Prompt API for constructing, merging, and manipulating LLM conversations using messages, parts, and composition operators. |
-| `effect-ai-provider` | `@effect/ai` provider layers (Anthropic, OpenAI, OpenAI-Compat, OpenRouter) with config management, model abstraction, `ExecutionPlan` fallback, runtime overrides. |
-| `effect-ai-streaming` | Streaming response patterns: start/delta/end protocol, accumulation strategies, resource-safe consumption, history management with `SubscriptionRef`. |
-| `effect-ai-tool` | Tool and Toolkit APIs — type-safe tool definitions, parameter validation, handler implementations, user- and provider-defined tools. |
 
 ### Schema & domain modeling (8)
 
@@ -200,12 +189,11 @@ Claude Code autoload triggering.
 | `effect-rpc-cluster` | RPC endpoints, cluster routing, workflow patterns with Effect RPC and Cluster. |
 | `effect-workflow` | Durable workflows with `Workflow`, `Activity`, `DurableClock`, `DurableDeferred` — execution that survives restarts, compensation (saga), distribution via Cluster. |
 
-### CLI & MCP (2)
+### CLI (1)
 
 | Skill | Description |
 |---|---|
 | `effect-cli` | Type-safe CLI applications — argument parsing, options, commands, dependency injection. |
-| `effect-mcp-server` | MCP servers with `McpServer`, `McpSchema`, `Tool`, `Toolkit`; stdio and HTTP transports. |
 
 ### Testing & migration (2)
 

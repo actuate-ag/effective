@@ -7,8 +7,7 @@ modifying Effect TypeScript:
 - **Invoke the relevant `effect-*` skill before writing**: `effect-error-handling`,
   `effect-schema-v4`, `effect-layer-design`, `effect-service-implementation`,
   and any task-specific skill (`effect-sql`, `effect-http-api`, `effect-stream`,
-  `effect-testing`, `effect-ai-*`, etc.). The full set of laws is in
-  `effect-first-laws`.
+  `effect-testing`, etc.). The full set of laws is in `effect-first-laws`.
 - **Never use Effect v3 names.** Common renames: `catchAll → catch`,
   `parseJson → fromJsonString`, `Either → Result`, `compose → decodeTo`,
   the `*FromSelf` suffix is removed, `Data.TaggedError → Schema.TaggedErrorClass`.
