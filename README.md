@@ -65,36 +65,69 @@ session. The reference clone is fail-silent; the pattern hook degrades to
 
 ## Install
 
-### As a Claude Code plugin (preferred)
+One script, two modes:
+
+```bash
+./scripts/install-user.sh                     # user-level (default)
+./scripts/install-user.sh --project           # project-level (current dir)
+./scripts/install-user.sh --project /some/dir # project-level (explicit dir)
+./scripts/install-user.sh [--project [DIR]] --uninstall
+```
+
+### User mode (default)
+
+For developers who write Effect across multiple repos.
+
+| Target | Action |
+|---|---|
+| `~/.claude/skills/effect-*` | symlink the 42 skills |
+| `~/.claude/CLAUDE.md` | append the Effect fragment (idempotent, marker-guarded) |
+| `~/.claude/settings.json` | merge `SessionStart` + `PostToolUse` hook entries (preserves existing settings) |
+| `~/.references/effect-v4/` | shallow-clone Effect-TS/effect-smol once at the default version |
+| `~/.zshrc` or `~/.bashrc` | append `export CLAUDE_CODE_EFFECT_REFERENCE_DIR=~/.references/effect-v4` |
+
+Open a new shell after install. The SessionStart hook in any project will
+symlink `<project>/.references/effect-v4` → `~/.references/effect-v4`.
+
+**Cost note**: the `PostToolUse` hook fires on every Edit/Write in every
+project — including non-Effect ones. In a non-Effect repo it adds ~50–100ms
+per edit (bun startup + a no-match pattern run). For Effect-heavy workflows
+this is the right tradeoff; if you only write Effect in one or two repos,
+use `--project` instead.
+
+### Project mode (`--project [DIR]`)
+
+For scoping everything to a single repo.
+
+| Target | Action |
+|---|---|
+| `<DIR>/.claude/skills/effect-*` | symlink the 42 skills |
+| `<DIR>/CLAUDE.md` | append the Effect fragment (idempotent, marker-guarded) |
+| `<DIR>/.claude/settings.json` | merge `SessionStart` + `PostToolUse` hook entries |
+| `<DIR>/.gitignore` | append `.references/` if missing |
+| `<DIR>/.references/effect-v4/` | clone lazily on first SessionStart (per-project, not shared) |
+
+### Uninstall
+
+```bash
+./scripts/install-user.sh --uninstall                  # reverse user-mode install
+./scripts/install-user.sh --project /some/dir --uninstall  # reverse project-mode install
+```
+
+Removes our skill symlinks, strips the CLAUDE.md fragment between markers,
+strips our hook entries from `settings.json`, and (user mode) removes the
+shell rc export. The reference clone is preserved as data — `rm -rf` it
+manually if no longer wanted.
+
+### As a Claude Code plugin (alternative)
 
 ```bash
 claude plugin install <path-or-url>/claude-code-effect
 ```
 
 The plugin's `hooks/hooks.json` wires both hooks; `skills/` is auto-discovered.
-
-### As skills + hooks for a single project
-
-```bash
-./scripts/install-project.sh /path/to/your/project
-```
-
-Symlinks `skills/effect-*` and `hooks/` into `<project>/.claude/`, appends the
-CLAUDE.md fragment (idempotent, marker-guarded), and prints next steps.
-`--uninstall` reverses everything.
-
-You'll also need to add hook entries to the target project's
-`<project>/.claude/settings.json` (or merge from `hooks/hooks.json`) — the
-script does not modify settings on your behalf.
-
-### As user-level skills (available everywhere)
-
-```bash
-./scripts/install-user.sh
-```
-
-Symlinks every `skills/effect-*` into `~/.claude/skills/`. Hooks are not
-installed user-wide.
+You can still run `./scripts/install-user.sh` afterwards just to set up the
+shared reference clone + shell rc env var.
 
 ---
 
@@ -281,38 +314,28 @@ falls back to `4.0.0-beta.59`. The detected version is used as the
 
 ### Reference clone location
 
-Default: `<cwd>/.references/effect-v4/` per project. The marker file is
-`<cwd>/.references/effect-v4/.claude-code-effect-version`.
+Two modes, selected by the `CLAUDE_CODE_EFFECT_REFERENCE_DIR` env var:
 
-#### Shared reference clone (recommended when you align Effect versions)
+| Mode | Env var | Clone path | Per-project path |
+|---|---|---|---|
+| **Shared** (default after `install-user.sh` user mode) | set | `$CLAUDE_CODE_EFFECT_REFERENCE_DIR` (default `~/.references/effect-v4`) | symlink → shared |
+| **Per-project** | unset | n/a | `<cwd>/.references/effect-v4/` |
 
-If every project on your machine pins the same `effect` version, point them
-all at one canonical clone instead of carrying a separate ~50–80 MB shallow
-clone per project.
+The marker file is `<clone>/.claude-code-effect-version` and contains the
+`effect@<version>` git tag.
 
-```sh
-./scripts/setup-shared.sh                  # default ~/.local/share/claude-code-effect/effect-v4
-./scripts/setup-shared.sh /custom/path     # or anywhere you want
-```
-
-The script:
-
-1. Appends `export CLAUDE_CODE_EFFECT_REFERENCE_DIR="<path>"` to your shell rc
-   (idempotently — safe to re-run). Supports zsh and bash.
-2. Warms the canonical clone immediately at the default Effect version.
-
-After that, the SessionStart hook in any project sees the env var, ensures
-the canonical clone exists at the right tag, and creates a symlink from
-`<project>/.references/effect-v4` → the canonical location. Skill bodies and
-the CLAUDE.md fragment reference `.references/effect-v4/...` literally, so
-the symlink keeps them transparent.
+**Why shared mode is the default for user-mode installs.** A typical Effect
+v4 reference clone is ~50–80 MB. Carrying one per project across 5–10 repos
+adds up. Shared mode clones once and symlinks every project's
+`.references/effect-v4` at it, so skill bodies and the CLAUDE.md fragment
+keep referencing `.references/effect-v4/...` transparently.
 
 **Version-mismatch policy in shared mode.** If a project pins a *different*
 `effect` version than the canonical clone, the hook **does not** re-clone
 (that would hose every other project pointing at it). It writes a one-line
 warning to stderr and continues using the existing clone. Either align
 versions across your projects, or unset `CLAUDE_CODE_EFFECT_REFERENCE_DIR`
-in that one project to fall back to per-project mode.
+in that one shell to fall back to per-project mode.
 
 **Existing per-project directory blocks the symlink.** If a project already
 has a real `<project>/.references/effect-v4` directory (e.g. from prior
