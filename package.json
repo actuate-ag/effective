@@ -11,6 +11,7 @@
 	"devDependencies": {
 		"@types/bun": "^1.1.0",
 		"@types/node": "^22.0.0",
+		"@types/picomatch": "^4.0.3",
 		"dprint": "^0.49.0",
 		"gray-matter": "^4.0.3",
 		"typescript": "^5.7.0",
@@ -18,5 +19,10 @@
 	},
 	"engines": {
 		"bun": ">=1.1.0"
+	},
+	"dependencies": {
+		"@ast-grep/napi": "^0.42.1",
+		"picomatch": "^4.0.4",
+		"yaml": "^2.8.4"
 	}
 }
