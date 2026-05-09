@@ -1,5 +1,16 @@
+import { Order, pipe } from 'effect';
+import * as Arr from 'effect/Array';
+import * as Option from 'effect/Option';
+
 import type { Pattern, Severity } from '../../patterns/types.ts';
 import { SEVERITY_RANK } from '../../patterns/types.ts';
+
+const severityOrder = Order.mapInput(Order.Number, (s: Severity) => SEVERITY_RANK[s]);
+
+const patternOrder = Order.combine(
+	Order.mapInput(severityOrder, (p: Pattern) => p.level),
+	Order.mapInput(Order.String, (p: Pattern) => p.name),
+);
 
 const formatSummaryLine = (p: Pattern): string =>
 	`- ${p.name} [${p.level}]: ${p.description}`;
@@ -14,20 +25,12 @@ const formatGuidanceBlock = (p: Pattern): string => {
 	return `## ${p.name}\n\n${p.guidance}${skillHint}`;
 };
 
-const ranked = (patterns: ReadonlyArray<Pattern>): ReadonlyArray<Pattern> => {
-	const seen = new Set<string>();
-	const unique: Pattern[] = [];
-	for (const p of patterns) {
-		if (!seen.has(p.name)) {
-			seen.add(p.name);
-			unique.push(p);
-		}
-	}
-	return unique.sort((a, b) => {
-		const sev = SEVERITY_RANK[a.level] - SEVERITY_RANK[b.level];
-		return sev !== 0 ? sev : a.name.localeCompare(b.name);
-	});
-};
+const ranked = (patterns: ReadonlyArray<Pattern>): ReadonlyArray<Pattern> =>
+	pipe(
+		patterns,
+		Arr.dedupeWith((a, b) => a.name === b.name),
+		Arr.sort(patternOrder),
+	);
 
 export const formatFeedback = (
 	matched: ReadonlyArray<Pattern>,
@@ -53,14 +56,14 @@ export const formatFeedback = (
 	].join('\n');
 };
 
+/**
+ * Returns the most severe level present in the matched patterns, or
+ * `Option.none` when the input is empty.
+ */
 export const severityFloor = (
 	patterns: ReadonlyArray<Pattern>,
-): Severity | undefined => {
-	let best: Severity | undefined;
-	for (const p of patterns) {
-		if (best === undefined || SEVERITY_RANK[p.level] < SEVERITY_RANK[best]) {
-			best = p.level;
-		}
-	}
-	return best;
-};
+): Option.Option<Severity> =>
+	Arr.match(patterns.map((p) => p.level), {
+		onEmpty: () => Option.none<Severity>(),
+		onNonEmpty: (levels) => Option.some(Arr.min(levels, severityOrder)),
+	});

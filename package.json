@@ -15,13 +15,16 @@
 		"dprint": "^0.49.0",
 		"gray-matter": "^4.0.3",
 		"typescript": "^5.7.0",
-		"vitest": "^2.1.0"
+		"vitest": "^3.0.0"
 	},
 	"engines": {
 		"bun": ">=1.1.0"
 	},
 	"dependencies": {
 		"@ast-grep/napi": "^0.42.1",
+		"@effect/platform-bun": "4.0.0-beta.57",
+		"@effect/vitest": "4.0.0-beta.57",
+		"effect": "4.0.0-beta.59",
 		"picomatch": "^4.0.4",
 		"yaml": "^2.8.4"
 	}

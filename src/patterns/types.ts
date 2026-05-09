@@ -39,3 +39,11 @@ export interface Pattern {
 	readonly suggestedSkills?: ReadonlyArray<string>;
 	readonly sourcePath: string;
 }
+
+export interface MatchLocation {
+	readonly start: number;
+	readonly end: number;
+	readonly line: number;
+	readonly column: number;
+	readonly snippet: string;
+}

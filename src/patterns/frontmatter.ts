@@ -1,12 +1,15 @@
+import { Effect, pipe } from 'effect';
+import * as Option from 'effect/Option';
 import YAML from 'yaml';
 
+import { FrontmatterParseError } from './errors.ts';
+
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---/;
+const SAFE_VALUE_RE = /^[\w\s.\-/]+$/;
 
 const isAlreadyQuoted = (val: string): boolean =>
 	(val.startsWith("'") && val.endsWith("'")) ||
 	(val.startsWith('"') && val.endsWith('"'));
-
-const SAFE_VALUE_RE = /^[\w\s.\-/]+$/;
 
 /**
  * Pattern frontmatter often contains regex strings with YAML indicator
@@ -15,7 +18,7 @@ const SAFE_VALUE_RE = /^[\w\s.\-/]+$/;
  */
 const quoteYamlValue = (line: string): string => {
 	const m = line.match(/^(\s*)(\w[\w-]*):\s+(.+)$/);
-	if (!m) return line;
+	if (m === null) return line;
 	const indent = m[1] ?? '';
 	const key = m[2] ?? '';
 	const val = m[3] ?? '';
@@ -24,19 +27,42 @@ const quoteYamlValue = (line: string): string => {
 	return `${indent}${key}: "${escaped}"`;
 };
 
-export const parseFrontmatter = (content: string): Record<string, unknown> => {
-	const match = content.match(FRONTMATTER_RE);
-	if (!match?.[1]) return {};
-	try {
-		const sanitized = match[1].split('\n').map(quoteYamlValue).join('\n');
-		const parsed: unknown = YAML.parse(sanitized);
-		return typeof parsed === 'object' && parsed !== null
-			? (parsed as Record<string, unknown>)
-			: {};
-	} catch {
-		return {};
-	}
-};
+const sanitize = (block: string): string =>
+	block.split('\n').map(quoteYamlValue).join('\n');
+
+/**
+ * Parse the YAML frontmatter block of a markdown file.
+ *
+ * Returns an empty record when the file has no frontmatter; fails with
+ * `FrontmatterParseError` when the block exists but is malformed YAML.
+ * Callers that prefer to skip malformed frontmatter can recover via
+ * `Effect.catchTag('FrontmatterParseError', () => Effect.succeed({}))`.
+ */
+export const parseFrontmatter = (
+	path: string,
+	content: string,
+): Effect.Effect<Record<string, unknown>, FrontmatterParseError> =>
+	pipe(
+		Option.fromNullishOr(content.match(FRONTMATTER_RE)?.[1]),
+		Option.match({
+			onNone: () => Effect.succeed<Record<string, unknown>>({}),
+			onSome: (block) =>
+				Effect.try({
+					try: () => YAML.parse(sanitize(block)) as unknown,
+					catch: (cause) =>
+						new FrontmatterParseError({
+							path,
+							message: cause instanceof Error ? cause.message : String(cause),
+						}),
+				}).pipe(
+					Effect.map((parsed) =>
+						typeof parsed === 'object' && parsed !== null
+							? (parsed as Record<string, unknown>)
+							: {},
+					),
+				),
+		}),
+	);
 
 export const extractBody = (content: string): string =>
 	content.replace(/^---\n[\s\S]*?\n---\n?/, '').trim();

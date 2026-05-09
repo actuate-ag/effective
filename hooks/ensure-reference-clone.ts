@@ -5,45 +5,53 @@
  * version.
  *
  * Reads the standard Claude Code hook payload from stdin (JSON with `cwd`).
- * Runs the clone synchronously off the main thread (this is a child process,
- * not the agent). Always exits 0; surfaces a one-line stderr note on failure
- * but never blocks the session.
+ * Always exits 0; surfaces a one-line stderr note on failure but never
+ * blocks the session.
  */
 
-import { detectEffectVersion } from '../src/reference/version.ts';
+import { BunRuntime, BunServices } from '@effect/platform-bun';
+import { Console, Effect, pipe, Schema } from 'effect';
+import * as Option from 'effect/Option';
+
 import { ensureReferenceClone } from '../src/reference/clone.ts';
+import { detectEffectVersion } from '../src/reference/version.ts';
 
-interface HookInput {
-	readonly cwd?: string;
-	readonly hook_event_name?: string;
-}
+class HookInput extends Schema.Class<HookInput>('HookInput')({
+	cwd: Schema.optionalKey(Schema.String),
+	hook_event_name: Schema.optionalKey(Schema.String),
+}) {}
 
-const readStdin = async (): Promise<string> => {
-	const chunks: Buffer[] = [];
-	for await (const chunk of process.stdin) {
-		chunks.push(chunk as Buffer);
-	}
-	return Buffer.concat(chunks).toString('utf8');
-};
+const decodeHookInput = Schema.decodeUnknownEffect(Schema.fromJsonString(HookInput));
 
-const main = async () => {
-	let payload: HookInput = {};
-	try {
-		const raw = await readStdin();
-		if (raw.trim() !== '') payload = JSON.parse(raw) as HookInput;
-	} catch {
-		// Empty or malformed input — fall back to cwd from env
-	}
+const readStdinText: Effect.Effect<string> = Effect.tryPromise({
+	try: () => Bun.stdin.text(),
+	catch: () => null,
+}).pipe(Effect.catch(() => Effect.succeed('')));
 
-	const cwd = payload.cwd ?? process.cwd();
-	const version = detectEffectVersion(cwd);
-	const ok = ensureReferenceClone(cwd, version);
+const program = Effect.gen(function*() {
+	const raw = yield* readStdinText;
+	const parsed = raw.trim() === ''
+		? Option.none<HookInput>()
+		: yield* decodeHookInput(raw).pipe(
+			Effect.match({
+				onFailure: () => Option.none<HookInput>(),
+				onSuccess: Option.some,
+			}),
+		);
+
+	const cwd = pipe(
+		parsed,
+		Option.flatMap((input) => Option.fromNullishOr(input.cwd)),
+		Option.getOrElse(() => process.cwd()),
+	);
+
+	const version = yield* detectEffectVersion(cwd);
+	const ok = yield* ensureReferenceClone(cwd, version);
 	if (!ok) {
-		process.stderr.write(
-			`claude-code-effect: reference clone unavailable (effect@${version}); the agent will continue without .references/effect-v4/\n`
+		yield* Console.error(
+			`claude-code-effect: reference clone unavailable (effect@${version}); the agent will continue without .references/effect-v4/`,
 		);
 	}
-	process.exit(0);
-};
+}).pipe(Effect.catch(() => Effect.void));
 
-void main();
+program.pipe(Effect.provide(BunServices.layer), BunRuntime.runMain);

@@ -1,17 +1,6 @@
-import { spawnSync } from 'node:child_process';
-import {
-	existsSync,
-	lstatSync,
-	mkdirSync,
-	readFileSync,
-	readlinkSync,
-	renameSync,
-	rmSync,
-	statSync,
-	symlinkSync,
-	writeFileSync,
-} from 'node:fs';
-import { dirname, join } from 'node:path';
+import { Clock, Effect, FileSystem, Path, pipe } from 'effect';
+import * as Option from 'effect/Option';
+import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process';
 
 import { EFFECT_SMOL_REPO } from './version.ts';
 
@@ -20,110 +9,164 @@ const VERSION_MARKER = '.claude-code-effect-version';
 /** Treat an existing .cloning dir as live if it was modified within this window. */
 const IN_FLIGHT_CLONE_MS = 90_000;
 
-const warn = (message: string): void => {
-	process.stderr.write(`claude-code-effect: ${message}\n`);
-};
+/**
+ * Boundary write to `process.stderr`: the harness owns its diagnostic output
+ * channel. A `Console` layer override would be more idiomatic in domain code,
+ * but this module is the runtime adapter — direct stderr is appropriate.
+ */
+const warn = (message: string): Effect.Effect<void> =>
+	Effect.sync(() => {
+		process.stderr.write(`claude-code-effect: ${message}\n`);
+	});
 
-const readClonedTag = (refDir: string): string | null => {
-	try {
-		const text = readFileSync(join(refDir, VERSION_MARKER), 'utf8').trim();
-		return text === '' ? null : text;
-	} catch {
-		return null;
-	}
-};
+const readClonedTag = (
+	refDir: string,
+): Effect.Effect<Option.Option<string>, never, FileSystem.FileSystem | Path.Path> =>
+	Effect.gen(function*() {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
+		return yield* fs.readFileString(path.join(refDir, VERSION_MARKER)).pipe(
+			Effect.map((text) => {
+				const trimmed = text.trim();
+				return trimmed === '' ? Option.none<string>() : Option.some(trimmed);
+			}),
+			Effect.catch(() => Effect.succeed(Option.none<string>())),
+		);
+	});
 
 /**
  * If a sibling `.cloning` directory exists and was modified recently, another
  * session is mid-clone. Back off rather than racing the rename.
  */
-const isCloneInFlight = (tmpDir: string): boolean => {
-	if (!existsSync(tmpDir)) return false;
-	try {
-		const mtimeMs = statSync(tmpDir).mtimeMs;
-		if (Date.now() - mtimeMs < IN_FLIGHT_CLONE_MS) return true;
-	} catch {
-		// fall through to clean up
-	}
-	try {
-		rmSync(tmpDir, { recursive: true, force: true });
-	} catch {
-		// ignore — the next clone will try again
-	}
-	return false;
-};
+const isCloneInFlight = (
+	tmpDir: string,
+): Effect.Effect<boolean, never, FileSystem.FileSystem> =>
+	Effect.gen(function*() {
+		const fs = yield* FileSystem.FileSystem;
+		const exists = yield* fs.exists(tmpDir).pipe(Effect.catch(() => Effect.succeed(false)));
+		if (!exists) return false;
+
+		const info = yield* fs.stat(tmpDir).pipe(Effect.option);
+		const now = yield* Clock.currentTimeMillis;
+		const ageMs = pipe(
+			info,
+			Option.flatMap((s) => s.mtime),
+			Option.map((m) => now - m.getTime()),
+			Option.getOrElse(() => Number.POSITIVE_INFINITY),
+		);
+		if (ageMs < IN_FLIGHT_CLONE_MS) return true;
+
+		yield* fs.remove(tmpDir, { recursive: true }).pipe(Effect.catch(() => Effect.void));
+		return false;
+	});
 
 interface CloneOptions {
 	/** When true, refuse to re-clone on version mismatch (shared-mode safety). */
 	readonly strictVersion: boolean;
 }
 
+const runGitClone = (
+	tmpDir: string,
+	tag: string,
+): Effect.Effect<boolean, never, ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem> =>
+	Effect.gen(function*() {
+		const command = ChildProcess.make('git', [
+			'clone',
+			'--depth',
+			'1',
+			'--branch',
+			tag,
+			EFFECT_SMOL_REPO,
+			tmpDir,
+		], {
+			stdin: 'ignore',
+			stdout: 'ignore',
+			stderr: 'ignore',
+		});
+
+		return yield* Effect.scoped(
+			Effect.gen(function*() {
+				const handle = yield* command;
+				const exit = yield* handle.exitCode;
+				return exit === 0;
+			}),
+		).pipe(Effect.catch(() => Effect.succeed(false)));
+	});
+
 const cloneInto = (
 	dir: string,
 	version: string,
 	opts: CloneOptions,
-): boolean => {
-	const tmpDir = `${dir}.cloning`;
-	const tag = `effect@${version}`;
+): Effect.Effect<
+	boolean,
+	never,
+	FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
+> =>
+	Effect.gen(function*() {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
+		const tmpDir = `${dir}.cloning`;
+		const tag = `effect@${version}`;
+		const gitDir = path.join(dir, '.git');
 
-	if (existsSync(join(dir, '.git'))) {
-		const existingTag = readClonedTag(dir);
-		if (existingTag === tag) return true;
+		const hasGit = yield* fs.exists(gitDir).pipe(Effect.catch(() => Effect.succeed(false)));
+		if (hasGit) {
+			const existingTagOpt = yield* readClonedTag(dir);
+			const existingTag = Option.getOrElse(existingTagOpt, () => '(unknown)');
+			if (Option.isSome(existingTagOpt) && existingTagOpt.value === tag) return true;
 
-		if (opts.strictVersion) {
-			warn(
-				`shared reference clone is at ${existingTag ?? '(unknown)'}, but ` +
-					`this project pins ${tag}. Skipping update to protect other ` +
-					`projects using the shared clone. Either align effect versions ` +
-					`across your projects, or unset ${SHARED_DIR_ENV} to use a ` +
-					`per-project clone.`,
+			if (opts.strictVersion) {
+				yield* warn(
+					`shared reference clone is at ${existingTag}, but ` +
+						`this project pins ${tag}. Skipping update to protect other ` +
+						`projects using the shared clone. Either align effect versions ` +
+						`across your projects, or unset ${SHARED_DIR_ENV} to use a ` +
+						`per-project clone.`,
+				);
+				return true;
+			}
+
+			const removed = yield* fs.remove(dir, { recursive: true }).pipe(
+				Effect.match({ onFailure: () => false, onSuccess: () => true }),
 			);
-			return true;
+			if (!removed) return false;
 		}
 
-		try {
-			rmSync(dir, { recursive: true, force: true });
-		} catch {
+		if (yield* isCloneInFlight(tmpDir)) {
+			yield* warn(`another session appears to be cloning into ${tmpDir}; skipping`);
 			return false;
 		}
-	}
 
-	if (isCloneInFlight(tmpDir)) {
-		warn(`another session appears to be cloning into ${tmpDir}; skipping`);
-		return false;
-	}
-
-	try {
-		mkdirSync(dirname(dir), { recursive: true });
-
-		const result = spawnSync(
-			'git',
-			['clone', '--depth', '1', '--branch', tag, EFFECT_SMOL_REPO, tmpDir],
-			{ stdio: ['ignore', 'ignore', 'pipe'] },
+		const parentDir = path.dirname(dir);
+		const parentMade = yield* fs.makeDirectory(parentDir, { recursive: true }).pipe(
+			Effect.match({ onFailure: () => false, onSuccess: () => true }),
 		);
-		if (result.status !== 0) {
-			try {
-				rmSync(tmpDir, { recursive: true, force: true });
-			} catch {
-				// ignore
-			}
+		if (!parentMade) return false;
+
+		const cloneOk = yield* runGitClone(tmpDir, tag);
+		if (!cloneOk) {
+			yield* fs.remove(tmpDir, { recursive: true }).pipe(Effect.catch(() => Effect.void));
 			return false;
 		}
 
-		writeFileSync(join(tmpDir, VERSION_MARKER), tag);
-		renameSync(tmpDir, dir);
-		return true;
-	} catch {
-		try {
-			if (existsSync(tmpDir)) {
-				rmSync(tmpDir, { recursive: true, force: true });
-			}
-		} catch {
-			// ignore
+		const markerWritten = yield* fs.writeFileString(path.join(tmpDir, VERSION_MARKER), tag).pipe(
+			Effect.match({ onFailure: () => false, onSuccess: () => true }),
+		);
+		if (!markerWritten) {
+			yield* fs.remove(tmpDir, { recursive: true }).pipe(Effect.catch(() => Effect.void));
+			return false;
 		}
-		return false;
-	}
-};
+
+		const renamed = yield* fs.rename(tmpDir, dir).pipe(
+			Effect.match({ onFailure: () => false, onSuccess: () => true }),
+		);
+		if (!renamed) {
+			yield* fs.remove(tmpDir, { recursive: true }).pipe(Effect.catch(() => Effect.void));
+			return false;
+		}
+
+		return true;
+	});
 
 /**
  * Make `<projectDir>/.references/effect-v4` resolve to `sharedDir`.
@@ -139,49 +182,69 @@ const cloneInto = (
 const ensureProjectSymlink = (
 	projectRefDir: string,
 	sharedDir: string,
-): boolean => {
-	try {
-		mkdirSync(dirname(projectRefDir), { recursive: true });
-	} catch {
-		return false;
-	}
+): Effect.Effect<boolean, never, FileSystem.FileSystem | Path.Path> =>
+	Effect.gen(function*() {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
 
-	let stat;
-	try {
-		stat = lstatSync(projectRefDir);
-	} catch {
-		try {
-			symlinkSync(sharedDir, projectRefDir, 'dir');
-			return true;
-		} catch (err) {
-			warn(
-				`failed to create symlink ${projectRefDir} -> ${sharedDir}: ${
-					err instanceof Error ? err.message : String(err)
-				}`,
+		const parentMade = yield* fs.makeDirectory(path.dirname(projectRefDir), { recursive: true })
+			.pipe(Effect.match({ onFailure: () => false, onSuccess: () => true }));
+		if (!parentMade) return false;
+
+		// Use lstat-equivalent: stat with `followSymlink: false` not exposed; we use
+		// readLink (fails on non-symlink) + exists (follows symlinks) to discriminate.
+		const linkTarget = yield* fs.readLink(projectRefDir).pipe(
+			Effect.match({
+				onFailure: () => Option.none<string>(),
+				onSuccess: Option.some,
+			}),
+		);
+
+		if (Option.isSome(linkTarget)) {
+			if (linkTarget.value === sharedDir) return true;
+			yield* warn(
+				`${projectRefDir} is a symlink pointing somewhere other than ${sharedDir}; ` +
+					`leaving it untouched. Remove it to use the shared clone.`,
 			);
 			return false;
 		}
-	}
 
-	if (stat.isSymbolicLink()) {
-		try {
-			if (readlinkSync(projectRefDir) === sharedDir) return true;
-		} catch {
-			// fall through to warning
-		}
-		warn(
-			`${projectRefDir} is a symlink pointing somewhere other than ${sharedDir}; ` +
-				`leaving it untouched. Remove it to use the shared clone.`,
+		const existsAsRealDir = yield* fs.exists(projectRefDir).pipe(
+			Effect.catch(() => Effect.succeed(false)),
 		);
-		return false;
-	}
+		if (existsAsRealDir) {
+			yield* warn(
+				`${projectRefDir} already exists as a real directory. Remove it (or ` +
+					`unset ${SHARED_DIR_ENV}) to use the shared clone.`,
+			);
+			return false;
+		}
 
-	warn(
-		`${projectRefDir} already exists as a real directory. Remove it (or ` +
-			`unset ${SHARED_DIR_ENV}) to use the shared clone.`,
-	);
-	return false;
-};
+		const result = yield* fs.symlink(sharedDir, projectRefDir).pipe(
+			Effect.match({
+				onFailure: (cause) => Option.some(cause.message),
+				onSuccess: () => Option.none<string>(),
+			}),
+		);
+		if (Option.isSome(result)) {
+			yield* warn(`failed to create symlink ${projectRefDir} -> ${sharedDir}: ${result.value}`);
+			return false;
+		}
+		return true;
+	});
+
+/**
+ * Read the shared-clone path from the runtime environment.
+ *
+ * Boundary read of `process.env`: the env var is the OS-level contract for
+ * shared mode. Treating it as a `Config` reference would be cleaner in
+ * pure domain code, but here we're at the harness's outermost runtime
+ * boundary, where direct access is appropriate.
+ */
+const readSharedDir: Effect.Effect<Option.Option<string>> = Effect.sync(() => {
+	const v = process.env[SHARED_DIR_ENV];
+	return v === undefined || v === '' ? Option.none<string>() : Option.some(v);
+});
 
 /**
  * Ensure a shallow clone of Effect-TS/effect-smol is available to the project.
@@ -195,21 +258,27 @@ const ensureProjectSymlink = (
  * warns instead and leaves the existing clone in place.
  *
  * Atomic via .cloning/ tmpdir + rename. Fail-silent: returns false on any
- * failure rather than throwing — never blocks a Claude Code session.
+ * failure rather than failing — never blocks a Claude Code session.
  */
 export const ensureReferenceClone = (
 	projectDir: string,
 	version: string,
-): boolean => {
-	const projectRefDir = join(projectDir, '.references', 'effect-v4');
-	const sharedDir = process.env[SHARED_DIR_ENV];
+): Effect.Effect<
+	boolean,
+	never,
+	FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
+> =>
+	Effect.gen(function*() {
+		const path = yield* Path.Path;
+		const projectRefDir = path.join(projectDir, '.references', 'effect-v4');
+		const sharedDir = yield* readSharedDir;
 
-	if (sharedDir === undefined || sharedDir === '') {
-		return cloneInto(projectRefDir, version, { strictVersion: false });
-	}
+		if (Option.isNone(sharedDir)) {
+			return yield* cloneInto(projectRefDir, version, { strictVersion: false });
+		}
 
-	const cloned = cloneInto(sharedDir, version, { strictVersion: true });
-	if (!cloned) return false;
+		const cloned = yield* cloneInto(sharedDir.value, version, { strictVersion: true });
+		if (!cloned) return false;
 
-	return ensureProjectSymlink(projectRefDir, sharedDir);
-};
+		return yield* ensureProjectSymlink(projectRefDir, sharedDir.value);
+	});

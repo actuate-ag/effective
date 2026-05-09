@@ -1,113 +1,106 @@
 #!/usr/bin/env bun
 /**
- * PostToolUse hook: after Edit / Write / MultiEdit, run the pattern catalog
- * against the post-write file and surface any matches back to Claude in-band.
- *
- * Reads the standard Claude Code hook payload from stdin:
- *   {
- *     "session_id": "...",
- *     "cwd": "/abs/path",
- *     "hook_event_name": "PostToolUse",
- *     "tool_name": "Edit" | "Write" | "MultiEdit",
- *     "tool_input": { "file_path": "/abs/path/to/file.ts", ... },
- *     "tool_response": { ... }
- *   }
- *
- * Emits to stdout:
- *   {"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"…"}}
+ * PostToolUse hook: after Edit / Write / MultiEdit / NotebookEdit, run the
+ * pattern catalog against the post-write file and surface any matches back
+ * to Claude in-band via hookSpecificOutput.additionalContext.
  *
  * Always exits 0; failures go to stderr only and never block the session.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { BunRuntime, BunServices } from '@effect/platform-bun';
+import { Effect, FileSystem, HashSet, Path, pipe, Schema } from 'effect';
+import * as Option from 'effect/Option';
 
 import { formatFeedback } from '../src/audit/format/claude-hook.ts';
 import { loadPatterns } from '../src/patterns/load.ts';
 import { patternMatches } from '../src/patterns/match.ts';
-import type { Pattern } from '../src/patterns/types.ts';
 
-interface HookInput {
-	readonly cwd?: string;
-	readonly tool_name?: string;
-	readonly tool_input?: { readonly file_path?: string };
-}
+class HookInput extends Schema.Class<HookInput>('HookInput')({
+	cwd: Schema.optionalKey(Schema.String),
+	tool_name: Schema.optionalKey(Schema.String),
+	tool_input: Schema.optionalKey(
+		Schema.Struct({ file_path: Schema.optionalKey(Schema.String) }),
+	),
+}) {}
 
-const READ_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+const decodeHookInput = Schema.decodeUnknownEffect(Schema.fromJsonString(HookInput));
 
-const readStdin = async (): Promise<string> => {
-	const chunks: Buffer[] = [];
-	for await (const chunk of process.stdin) {
-		chunks.push(chunk as Buffer);
-	}
-	return Buffer.concat(chunks).toString('utf8');
-};
+const READ_TOOLS = HashSet.fromIterable(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 
-const resolvePatternsDir = (): string => {
+const readStdinText: Effect.Effect<string> = Effect.tryPromise({
+	try: () => Bun.stdin.text(),
+	catch: () => null,
+}).pipe(Effect.catch(() => Effect.succeed('')));
+
+const resolvePatternsDir = Effect.gen(function*() {
+	const fs = yield* FileSystem.FileSystem;
+	const path = yield* Path.Path;
+
 	const fromEnv = process.env.CLAUDE_CODE_EFFECT_PATTERNS_DIR;
-	if (fromEnv !== undefined && fromEnv !== '' && existsSync(fromEnv)) {
-		return fromEnv;
+	if (fromEnv !== undefined && fromEnv !== '') {
+		const ok = yield* fs.exists(fromEnv).pipe(Effect.catch(() => Effect.succeed(false)));
+		if (ok) return fromEnv;
 	}
 	const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT;
 	if (pluginRoot !== undefined && pluginRoot !== '') {
-		const dir = join(pluginRoot, 'patterns');
-		if (existsSync(dir)) return dir;
+		const dir = path.join(pluginRoot, 'patterns');
+		const ok = yield* fs.exists(dir).pipe(Effect.catch(() => Effect.succeed(false)));
+		if (ok) return dir;
 	}
-	const here = dirname(fileURLToPath(import.meta.url));
-	const sibling = resolve(here, '..', 'patterns');
-	return sibling;
-};
+	const here = path.dirname(new URL(import.meta.url).pathname);
+	return path.resolve(here, '..', 'patterns');
+});
 
-const resolveFilePath = (cwd: string, raw: string | undefined): string | undefined => {
-	if (raw === undefined || raw === '') return undefined;
-	return isAbsolute(raw) ? raw : resolve(cwd, raw);
-};
+const program = Effect.gen(function*() {
+	const raw = yield* readStdinText;
+	if (raw.trim() === '') return;
 
-const main = async () => {
-	let payload: HookInput = {};
-	try {
-		const raw = await readStdin();
-		if (raw.trim() !== '') payload = JSON.parse(raw) as HookInput;
-	} catch {
-		process.exit(0);
-	}
+	const inputOpt = yield* decodeHookInput(raw).pipe(
+		Effect.match({
+			onFailure: () => Option.none<HookInput>(),
+			onSuccess: Option.some,
+		}),
+	);
+	if (Option.isNone(inputOpt)) return;
+	const input = inputOpt.value;
 
-	const toolName = payload.tool_name ?? '';
-	if (!READ_TOOLS.has(toolName)) {
-		process.exit(0);
-	}
+	const toolName = input.tool_name ?? '';
+	if (!HashSet.has(READ_TOOLS, toolName)) return;
 
-	const cwd = payload.cwd ?? process.cwd();
-	const filePath = resolveFilePath(cwd, payload.tool_input?.file_path);
-	if (filePath === undefined || !existsSync(filePath)) {
-		process.exit(0);
-	}
+	const cwd = input.cwd ?? process.cwd();
+	const filePathRaw = input.tool_input?.file_path;
+	if (filePathRaw === undefined || filePathRaw === '') return;
 
-	let source: string;
-	try {
-		source = readFileSync(filePath, 'utf8');
-	} catch {
-		process.exit(0);
-	}
+	const path = yield* Path.Path;
+	const filePath = path.isAbsolute(filePathRaw) ? filePathRaw : path.resolve(cwd, filePathRaw);
 
-	const patternsDir = resolvePatternsDir();
-	let patterns: ReadonlyArray<Pattern>;
-	try {
-		patterns = loadPatterns(patternsDir);
-	} catch (err) {
-		process.stderr.write(
-			`claude-code-effect: failed to load patterns from ${patternsDir}: ${
-				err instanceof Error ? err.message : String(err)
-			}\n`,
+	const fs = yield* FileSystem.FileSystem;
+	const fileExists = yield* fs.exists(filePath).pipe(Effect.catch(() => Effect.succeed(false)));
+	if (!fileExists) return;
+
+	const sourceOpt = yield* fs.readFileString(filePath).pipe(
+		Effect.match({
+			onFailure: () => Option.none<string>(),
+			onSuccess: Option.some,
+		}),
+	);
+	if (Option.isNone(sourceOpt)) return;
+	const source = sourceOpt.value;
+
+	const patternsDir = yield* resolvePatternsDir;
+	const patterns = yield* loadPatterns(patternsDir);
+
+	const matched = yield* Effect.forEach(patterns, (p) =>
+		pipe(
+			patternMatches(p, toolName, filePath, source),
+			Effect.map((isMatch) => (isMatch ? Option.some(p) : Option.none())),
+		)).pipe(
+			Effect.map((opts) =>
+				opts.flatMap((o) => Option.match(o, { onNone: () => [], onSome: (v) => [v] }))
+			),
 		);
-		process.exit(0);
-	}
 
-	const matched = patterns.filter((p) => patternMatches(p, toolName, filePath, source));
-	if (matched.length === 0) {
-		process.exit(0);
-	}
+	if (matched.length === 0) return;
 
 	const additionalContext = formatFeedback(matched, filePath);
 	process.stdout.write(
@@ -118,7 +111,6 @@ const main = async () => {
 			},
 		}),
 	);
-	process.exit(0);
-};
+}).pipe(Effect.catch(() => Effect.void));
 
-void main();
+program.pipe(Effect.provide(BunServices.layer), BunRuntime.runMain);
