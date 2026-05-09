@@ -13,7 +13,7 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { EFFECT_SMOL_REPO } from './effect-version.ts';
+import { EFFECT_SMOL_REPO } from './version.ts';
 
 export const SHARED_DIR_ENV = 'CLAUDE_CODE_EFFECT_REFERENCE_DIR';
 const VERSION_MARKER = '.claude-code-effect-version';

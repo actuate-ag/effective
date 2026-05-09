@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 
-import { loadPatterns } from '../../hooks/lib/load-patterns.ts';
-import { patternMatches } from '../../hooks/lib/match-pattern.ts';
-import type { Pattern } from '../../hooks/lib/pattern.ts';
+import { loadPatterns } from '../../src/patterns/load.ts';
+import { patternMatches } from '../../src/patterns/match.ts';
+import type { Pattern } from '../../src/patterns/types.ts';
 
 const PATTERNS_DIR = join(__dirname, '..', '..', 'patterns');
 

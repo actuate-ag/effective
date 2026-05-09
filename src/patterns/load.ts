@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { extractBody, parseFrontmatter } from './frontmatter.ts';
-import type { AstDetector, Detector, Pattern, RegexDetector, Severity } from './pattern.ts';
+import type { AstDetector, Detector, Pattern, RegexDetector, Severity } from './types.ts';
 
 const SKIPPED_PREFIXES = ['readme', 'index'];
 

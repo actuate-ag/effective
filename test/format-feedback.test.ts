@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatFeedback } from '../hooks/lib/format-feedback.ts';
-import type { Pattern } from '../hooks/lib/pattern.ts';
+import { formatFeedback } from '../src/audit/format/claude-hook.ts';
+import type { Pattern } from '../src/patterns/types.ts';
 
 const make = (over: Partial<Pattern>): Pattern => ({
 	name: 'p',

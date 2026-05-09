@@ -23,10 +23,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { formatFeedback } from './lib/format-feedback.ts';
-import { loadPatterns } from './lib/load-patterns.ts';
-import { patternMatches } from './lib/match-pattern.ts';
-import type { Pattern } from './lib/pattern.ts';
+import { formatFeedback } from '../src/audit/format/claude-hook.ts';
+import { loadPatterns } from '../src/patterns/load.ts';
+import { patternMatches } from '../src/patterns/match.ts';
+import type { Pattern } from '../src/patterns/types.ts';
 
 interface HookInput {
 	readonly cwd?: string;

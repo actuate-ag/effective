@@ -10,8 +10,8 @@
  * but never blocks the session.
  */
 
-import { detectEffectVersion } from './lib/effect-version.ts';
-import { ensureReferenceClone } from './lib/reference-clone.ts';
+import { detectEffectVersion } from '../src/reference/version.ts';
+import { ensureReferenceClone } from '../src/reference/clone.ts';
 
 interface HookInput {
 	readonly cwd?: string;

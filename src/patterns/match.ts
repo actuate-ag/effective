@@ -2,7 +2,7 @@ import type { NapiConfig, Rule as AstGrepRuleDefinition } from '@ast-grep/napi';
 import { Lang, parse } from '@ast-grep/napi';
 import picomatch from 'picomatch';
 
-import type { AstDetector, Pattern, RegexDetector } from './pattern.ts';
+import type { AstDetector, Pattern, RegexDetector } from './types.ts';
 import { stripComments } from './strip-comments.ts';
 
 const tryRegex = (s: string, flags = ''): RegExp | undefined => {

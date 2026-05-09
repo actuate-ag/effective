@@ -1,5 +1,5 @@
-import type { Pattern, Severity } from './pattern.ts';
-import { SEVERITY_RANK } from './pattern.ts';
+import type { Pattern, Severity } from '../../patterns/types.ts';
+import { SEVERITY_RANK } from '../../patterns/types.ts';
 
 const formatSummaryLine = (p: Pattern): string =>
 	`- ${p.name} [${p.level}]: ${p.description}`;

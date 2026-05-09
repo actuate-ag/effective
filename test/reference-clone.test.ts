@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ensureReferenceClone, SHARED_DIR_ENV } from '../hooks/lib/reference-clone.ts';
+import { ensureReferenceClone, SHARED_DIR_ENV } from '../src/reference/clone.ts';
 
 const VERSION_MARKER = '.claude-code-effect-version';
 

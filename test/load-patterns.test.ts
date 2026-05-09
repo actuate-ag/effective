@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { loadPatterns } from '../hooks/lib/load-patterns.ts';
+import { loadPatterns } from '../src/patterns/load.ts';
 
 const PATTERNS_DIR = join(__dirname, '..', 'patterns');
 
