@@ -1,3 +1,5 @@
+import { Order, pipe } from 'effect';
+import * as Arr from 'effect/Array';
 import { describe, expect, it } from 'vitest';
 
 import { formatFeedback } from '../src/audit/format/claude-hook.ts';
@@ -28,7 +30,7 @@ describe('formatFeedback', () => {
 		);
 		const order = ['a-crit', 'a-warn', 'b-warn', 'a-info'];
 		const positions = order.map((n) => out.indexOf(`- ${n} `));
-		expect(positions, 'severity ordering broken').toEqual([...positions].sort((a, b) => a - b));
+		expect(positions, 'severity ordering broken').toEqual(pipe(positions, Arr.sort(Order.Number)));
 	});
 
 	it('dedupes by name', () => {

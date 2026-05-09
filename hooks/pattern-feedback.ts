@@ -8,19 +8,21 @@
  */
 
 import { BunRuntime, BunServices } from '@effect/platform-bun';
-import { Effect, FileSystem, HashSet, Path, Schema } from 'effect';
+import { Config, Effect, FileSystem, HashSet, Path, Schema } from 'effect';
 import * as Option from 'effect/Option';
 
 import { formatFeedback } from '../src/audit/format/claude-hook.ts';
 import { matchedPatternsForFile } from '../src/audit/runner.ts';
 import { loadPatterns } from '../src/patterns/load.ts';
 
+class HookToolInput extends Schema.Class<HookToolInput>('HookToolInput')({
+	file_path: Schema.optionalKey(Schema.String),
+}) {}
+
 class HookInput extends Schema.Class<HookInput>('HookInput')({
 	cwd: Schema.optionalKey(Schema.String),
 	tool_name: Schema.optionalKey(Schema.String),
-	tool_input: Schema.optionalKey(
-		Schema.Struct({ file_path: Schema.optionalKey(Schema.String) }),
-	),
+	tool_input: Schema.optionalKey(HookToolInput),
 }) {}
 
 const decodeHookInput = Schema.decodeUnknownEffect(Schema.fromJsonString(HookInput));
@@ -30,21 +32,31 @@ const READ_TOOLS = HashSet.fromIterable(['Edit', 'Write', 'MultiEdit', 'Notebook
 const readStdinText: Effect.Effect<string> = Effect.tryPromise({
 	try: () => Bun.stdin.text(),
 	catch: () => null,
-}).pipe(Effect.catch(() => Effect.succeed('')));
+}).pipe(Effect.match({ onFailure: () => '', onSuccess: (s) => s }));
+
+const readEnvOption = (name: string): Effect.Effect<Option.Option<string>> =>
+	Effect.gen(function*() {
+		const opt = yield* Config.option(Config.string(name));
+		return Option.flatMap(opt, (s) => (s === '' ? Option.none<string>() : Option.some(s)));
+	}).pipe(Effect.match({ onFailure: () => Option.none<string>(), onSuccess: (o) => o }));
 
 const resolvePatternsDir = Effect.gen(function*() {
 	const fs = yield* FileSystem.FileSystem;
 	const path = yield* Path.Path;
 
-	const fromEnv = process.env.CLAUDE_CODE_EFFECT_PATTERNS_DIR;
-	if (fromEnv !== undefined && fromEnv !== '') {
-		const ok = yield* fs.exists(fromEnv).pipe(Effect.catch(() => Effect.succeed(false)));
-		if (ok) return fromEnv;
+	const fromEnv = yield* readEnvOption('CLAUDE_CODE_EFFECT_PATTERNS_DIR');
+	if (Option.isSome(fromEnv)) {
+		const ok = yield* fs.exists(fromEnv.value).pipe(
+			Effect.match({ onFailure: () => false, onSuccess: (b) => b }),
+		);
+		if (ok) return fromEnv.value;
 	}
-	const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT;
-	if (pluginRoot !== undefined && pluginRoot !== '') {
-		const dir = path.join(pluginRoot, 'patterns');
-		const ok = yield* fs.exists(dir).pipe(Effect.catch(() => Effect.succeed(false)));
+	const pluginRoot = yield* readEnvOption('CLAUDE_PLUGIN_ROOT');
+	if (Option.isSome(pluginRoot)) {
+		const dir = path.join(pluginRoot.value, 'patterns');
+		const ok = yield* fs.exists(dir).pipe(
+			Effect.match({ onFailure: () => false, onSuccess: (b) => b }),
+		);
 		if (ok) return dir;
 	}
 	const here = path.dirname(new URL(import.meta.url).pathname);
@@ -75,7 +87,9 @@ const program = Effect.gen(function*() {
 	const filePath = path.isAbsolute(filePathRaw) ? filePathRaw : path.resolve(cwd, filePathRaw);
 
 	const fs = yield* FileSystem.FileSystem;
-	const fileExists = yield* fs.exists(filePath).pipe(Effect.catch(() => Effect.succeed(false)));
+	const fileExists = yield* fs.exists(filePath).pipe(
+		Effect.match({ onFailure: () => false, onSuccess: (b) => b }),
+	);
 	if (!fileExists) return;
 
 	const sourceOpt = yield* fs.readFileString(filePath).pipe(

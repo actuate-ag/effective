@@ -1,22 +1,28 @@
 import { it } from '@effect/vitest';
 import { BunServices } from '@effect/platform-bun';
-import { Effect } from 'effect';
-import { join } from 'node:path';
+import { Effect, Path } from 'effect';
 import { describe, expect } from 'vitest';
 
 import { loadPatterns } from '../src/patterns/load.ts';
 
-const PATTERNS_DIR = join(__dirname, '..', 'patterns');
+const patternsDir = Effect.gen(function*() {
+	const path = yield* Path.Path;
+	return path.resolve(__dirname, '..', 'patterns');
+});
+
+const loadCatalog = Effect.gen(function*() {
+	const dir = yield* patternsDir;
+	return yield* loadPatterns(dir);
+}).pipe(Effect.provide(BunServices.layer));
 
 describe('loadPatterns', () => {
 	it.effect('loads every pattern file in the catalog', () =>
-		loadPatterns(PATTERNS_DIR).pipe(
+		loadCatalog.pipe(
 			Effect.tap((patterns) => Effect.sync(() => expect(patterns.length).toBe(46))),
-			Effect.provide(BunServices.layer),
 		));
 
 	it.effect('every loaded pattern has a name and a detector', () =>
-		loadPatterns(PATTERNS_DIR).pipe(
+		loadCatalog.pipe(
 			Effect.tap((patterns) =>
 				Effect.sync(() => {
 					patterns.forEach((p) => {
@@ -25,11 +31,10 @@ describe('loadPatterns', () => {
 					});
 				})
 			),
-			Effect.provide(BunServices.layer),
 		));
 
 	it.effect('every pattern has a non-empty guidance body', () =>
-		loadPatterns(PATTERNS_DIR).pipe(
+		loadCatalog.pipe(
 			Effect.tap((patterns) =>
 				Effect.sync(() => {
 					patterns.forEach((p) => {
@@ -37,11 +42,10 @@ describe('loadPatterns', () => {
 					});
 				})
 			),
-			Effect.provide(BunServices.layer),
 		));
 
 	it.effect('every pattern has a recognized severity', () =>
-		loadPatterns(PATTERNS_DIR).pipe(
+		loadCatalog.pipe(
 			Effect.tap((patterns) =>
 				Effect.sync(() => {
 					const valid = new Set(['critical', 'high', 'medium', 'warning', 'info']);
@@ -50,17 +54,15 @@ describe('loadPatterns', () => {
 					});
 				})
 			),
-			Effect.provide(BunServices.layer),
 		));
 
 	it.effect('pattern names are unique', () =>
-		loadPatterns(PATTERNS_DIR).pipe(
+		loadCatalog.pipe(
 			Effect.tap((patterns) =>
 				Effect.sync(() => {
 					const names = patterns.map((p) => p.name);
 					expect(new Set(names).size, 'duplicate pattern names').toBe(names.length);
 				})
 			),
-			Effect.provide(BunServices.layer),
 		));
 });

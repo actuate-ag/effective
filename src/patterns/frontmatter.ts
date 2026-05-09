@@ -48,12 +48,9 @@ export const parseFrontmatter = (
 			onNone: () => Effect.succeed<Record<string, unknown>>({}),
 			onSome: (block) =>
 				Effect.try({
-					try: () => YAML.parse(sanitize(block)) as unknown,
+					try: (): unknown => YAML.parse(sanitize(block)),
 					catch: (cause) =>
-						new FrontmatterParseError({
-							path,
-							message: cause instanceof Error ? cause.message : String(cause),
-						}),
+						new FrontmatterParseError({ path, message: String(cause) }),
 				}).pipe(
 					Effect.map((parsed) =>
 						typeof parsed === 'object' && parsed !== null

@@ -54,25 +54,34 @@ export const auditFile = Effect.fn('auditFile')(function*(
 	if (Option.isNone(sourceOpt)) return [] as ReadonlyArray<AuditMatch>;
 	const source = sourceOpt.value;
 
-	const perPattern = yield* Effect.forEach(patterns, (pattern) =>
-		findPatternMatches(pattern, 'Edit', filePath, source).pipe(
-			Effect.map((locations) =>
-				locations.map((loc) => toAuditMatch(pattern, filePath, loc))
+	const perPattern = yield* Effect.forEach(
+		patterns,
+		(pattern) =>
+			findPatternMatches(pattern, 'Edit', filePath, source).pipe(
+				Effect.map((locations) =>
+					locations.map((loc) => toAuditMatch(pattern, filePath, loc))
+				),
 			),
-		));
+		{ concurrency: 'unbounded' },
+	);
 	return perPattern.flatMap((xs) => xs);
 });
 
 /**
- * Audit a list of files against the catalog. Runs them sequentially today;
- * could trivially become `Effect.forEach` with concurrency once the matcher
- * core is hot-path tuned.
+ * Audit a list of files against the catalog. Caps file-level parallelism at
+ * 8 because each `auditFile` call holds a `FileSystem.readFileString` and
+ * an ast-grep parse in flight; unbounded fan-out can exhaust file
+ * descriptors and pegs all CPU cores at once on large repos.
  */
 export const auditFiles = Effect.fn('auditFiles')(function*(
 	files: ReadonlyArray<string>,
 	patterns: ReadonlyArray<Pattern>,
 ) {
-	const all = yield* Effect.forEach(files, (file) => auditFile(file, patterns));
+	const all = yield* Effect.forEach(
+		files,
+		(file) => auditFile(file, patterns),
+		{ concurrency: 8 },
+	);
 	return pipe(all, Arr.flatten);
 });
 
@@ -89,10 +98,14 @@ export const matchedPatternsForFile = Effect.fn('matchedPatternsForFile')(functi
 	filePath: string,
 	source: string,
 ) {
-	const flags = yield* Effect.forEach(patterns, (pattern) =>
-		patternMatches(pattern, toolName, filePath, source).pipe(
-			Effect.map((isMatch) => ({ pattern, isMatch })),
-		));
+	const flags = yield* Effect.forEach(
+		patterns,
+		(pattern) =>
+			patternMatches(pattern, toolName, filePath, source).pipe(
+				Effect.map((isMatch) => ({ pattern, isMatch })),
+			),
+		{ concurrency: 'unbounded' },
+	);
 	return flags.flatMap((entry) => (entry.isMatch ? [entry.pattern] : []));
 });
 

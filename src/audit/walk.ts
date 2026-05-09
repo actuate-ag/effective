@@ -61,37 +61,40 @@ export const walkDirectory = (
 					}),
 				);
 
-				const collected = yield* Effect.forEach(entries, (entry) =>
-					Effect.gen(function*() {
-						if (HARD_SKIP_DIRS.has(entry)) return [] as ReadonlyArray<string>;
-						const full = path.join(dir, entry);
+				const collected = yield* Effect.forEach(
+					entries,
+					(entry) =>
+						Effect.gen(function*() {
+							if (HARD_SKIP_DIRS.has(entry)) return [] as ReadonlyArray<string>;
+							const full = path.join(dir, entry);
 
-						if (!options.followSymlinks) {
-							const linkOpt = yield* fs.readLink(full).pipe(
-								Effect.match({
-									onFailure: () => Option.none<string>(),
-									onSuccess: Option.some,
-								}),
-							);
-							if (Option.isSome(linkOpt)) return [] as ReadonlyArray<string>;
-						}
+							if (!options.followSymlinks) {
+								const linkOpt = yield* fs.readLink(full).pipe(
+									Effect.match({
+										onFailure: () => Option.none<string>(),
+										onSuccess: Option.some,
+									}),
+								);
+								if (Option.isSome(linkOpt)) return [] as ReadonlyArray<string>;
+							}
 
-						const info = yield* fs.stat(full).pipe(Effect.option);
-						if (Option.isNone(info)) return [] as ReadonlyArray<string>;
+							const info = yield* fs.stat(full).pipe(Effect.option);
+							if (Option.isNone(info)) return [] as ReadonlyArray<string>;
 
-						if (info.value.type === 'Directory') {
-							return options.recursive
-								? yield* recurse(full)
-								: ([] as ReadonlyArray<string>);
-						}
-						if (
-							info.value.type === 'File' &&
-							matchesExtension(entry, options.extensions)
-						) {
-							return [full] as ReadonlyArray<string>;
-						}
-						return [] as ReadonlyArray<string>;
-					}),
+							if (info.value.type === 'Directory') {
+								return options.recursive
+									? yield* recurse(full)
+									: ([] as ReadonlyArray<string>);
+							}
+							if (
+								info.value.type === 'File' &&
+								matchesExtension(entry, options.extensions)
+							) {
+								return [full] as ReadonlyArray<string>;
+							}
+							return [] as ReadonlyArray<string>;
+						}),
+					{ concurrency: 8 },
 				);
 				return collected.flatMap((xs) => xs);
 			});

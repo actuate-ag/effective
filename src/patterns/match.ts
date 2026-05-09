@@ -139,10 +139,16 @@ const astLocations = (
 		if (Option.isNone(rootOpt)) return [] as ReadonlyArray<MatchLocation>;
 		const root = rootOpt.value;
 
-		const fromPatterns = yield* Effect.forEach(det.patterns, (candidate) =>
-			findAllSafe(root, legacyAstMatcher(det, candidate)));
-		const fromRules = yield* Effect.forEach(det.rules ?? [], (rule) =>
-			findAllSafe(root, astRuleMatcher(det, rule)));
+		const fromPatterns = yield* Effect.forEach(
+			det.patterns,
+			(candidate) => findAllSafe(root, legacyAstMatcher(det, candidate)),
+			{ concurrency: 'unbounded' },
+		);
+		const fromRules = yield* Effect.forEach(
+			det.rules ?? [],
+			(rule) => findAllSafe(root, astRuleMatcher(det, rule)),
+			{ concurrency: 'unbounded' },
+		);
 
 		return pipe(
 			[...fromPatterns.flat(), ...fromRules.flat()],
@@ -195,7 +201,7 @@ const passesIgnoreGlobFilter = (
 		Option.match({
 			onNone: () => Effect.succeed(true),
 			onSome: (globs) =>
-				Effect.forEach(globs, compileGlob).pipe(
+				Effect.forEach(globs, compileGlob, { concurrency: 'unbounded' }).pipe(
 					Effect.map((compiled) =>
 						pipe(
 							Arr.getSomes(compiled),

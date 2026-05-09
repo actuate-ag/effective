@@ -26,7 +26,7 @@ const decodeHookInput = Schema.decodeUnknownEffect(Schema.fromJsonString(HookInp
 const readStdinText: Effect.Effect<string> = Effect.tryPromise({
 	try: () => Bun.stdin.text(),
 	catch: () => null,
-}).pipe(Effect.catch(() => Effect.succeed('')));
+}).pipe(Effect.match({ onFailure: () => '', onSuccess: (s) => s }));
 
 const program = Effect.gen(function*() {
 	const raw = yield* readStdinText;
@@ -52,6 +52,6 @@ const program = Effect.gen(function*() {
 			`claude-code-effect: reference clone unavailable (effect@${version}); the agent will continue without .references/effect-v4/`,
 		);
 	}
-}).pipe(Effect.catch(() => Effect.void));
+}).pipe(Effect.ignore);
 
 program.pipe(Effect.provide(BunServices.layer), BunRuntime.runMain);

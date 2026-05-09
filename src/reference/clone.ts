@@ -1,4 +1,4 @@
-import { Clock, Effect, FileSystem, Path, pipe } from 'effect';
+import { Clock, Config, Effect, FileSystem, Path, pipe } from 'effect';
 import * as Option from 'effect/Option';
 import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process';
 
@@ -26,11 +26,13 @@ const readClonedTag = (
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
 		return yield* fs.readFileString(path.join(refDir, VERSION_MARKER)).pipe(
-			Effect.map((text) => {
-				const trimmed = text.trim();
-				return trimmed === '' ? Option.none<string>() : Option.some(trimmed);
+			Effect.match({
+				onFailure: () => Option.none<string>(),
+				onSuccess: (text) => {
+					const trimmed = text.trim();
+					return trimmed === '' ? Option.none<string>() : Option.some(trimmed);
+				},
 			}),
-			Effect.catch(() => Effect.succeed(Option.none<string>())),
 		);
 	});
 
@@ -43,7 +45,9 @@ const isCloneInFlight = (
 ): Effect.Effect<boolean, never, FileSystem.FileSystem> =>
 	Effect.gen(function*() {
 		const fs = yield* FileSystem.FileSystem;
-		const exists = yield* fs.exists(tmpDir).pipe(Effect.catch(() => Effect.succeed(false)));
+		const exists = yield* fs.exists(tmpDir).pipe(
+			Effect.match({ onFailure: () => false, onSuccess: (b) => b }),
+		);
 		if (!exists) return false;
 
 		const info = yield* fs.stat(tmpDir).pipe(Effect.option);
@@ -56,7 +60,7 @@ const isCloneInFlight = (
 		);
 		if (ageMs < IN_FLIGHT_CLONE_MS) return true;
 
-		yield* fs.remove(tmpDir, { recursive: true }).pipe(Effect.catch(() => Effect.void));
+		yield* fs.remove(tmpDir, { recursive: true }).pipe(Effect.ignore);
 		return false;
 	});
 
@@ -90,7 +94,7 @@ const runGitClone = (
 				const exit = yield* handle.exitCode;
 				return exit === 0;
 			}),
-		).pipe(Effect.catch(() => Effect.succeed(false)));
+		).pipe(Effect.match({ onFailure: () => false, onSuccess: (b) => b }));
 	});
 
 const cloneInto = (
@@ -109,7 +113,7 @@ const cloneInto = (
 		const tag = `effect@${version}`;
 		const gitDir = path.join(dir, '.git');
 
-		const hasGit = yield* fs.exists(gitDir).pipe(Effect.catch(() => Effect.succeed(false)));
+		const hasGit = yield* fs.exists(gitDir).pipe(Effect.match({ onFailure: () => false, onSuccess: (b) => b }));
 		if (hasGit) {
 			const existingTagOpt = yield* readClonedTag(dir);
 			const existingTag = Option.getOrElse(existingTagOpt, () => '(unknown)');
@@ -145,7 +149,7 @@ const cloneInto = (
 
 		const cloneOk = yield* runGitClone(tmpDir, tag);
 		if (!cloneOk) {
-			yield* fs.remove(tmpDir, { recursive: true }).pipe(Effect.catch(() => Effect.void));
+			yield* fs.remove(tmpDir, { recursive: true }).pipe(Effect.ignore);
 			return false;
 		}
 
@@ -153,7 +157,7 @@ const cloneInto = (
 			Effect.match({ onFailure: () => false, onSuccess: () => true }),
 		);
 		if (!markerWritten) {
-			yield* fs.remove(tmpDir, { recursive: true }).pipe(Effect.catch(() => Effect.void));
+			yield* fs.remove(tmpDir, { recursive: true }).pipe(Effect.ignore);
 			return false;
 		}
 
@@ -161,7 +165,7 @@ const cloneInto = (
 			Effect.match({ onFailure: () => false, onSuccess: () => true }),
 		);
 		if (!renamed) {
-			yield* fs.remove(tmpDir, { recursive: true }).pipe(Effect.catch(() => Effect.void));
+			yield* fs.remove(tmpDir, { recursive: true }).pipe(Effect.ignore);
 			return false;
 		}
 
@@ -210,7 +214,7 @@ const ensureProjectSymlink = (
 		}
 
 		const existsAsRealDir = yield* fs.exists(projectRefDir).pipe(
-			Effect.catch(() => Effect.succeed(false)),
+			Effect.match({ onFailure: () => false, onSuccess: (b) => b }),
 		);
 		if (existsAsRealDir) {
 			yield* warn(
@@ -233,18 +237,15 @@ const ensureProjectSymlink = (
 		return true;
 	});
 
-/**
- * Read the shared-clone path from the runtime environment.
- *
- * Boundary read of `process.env`: the env var is the OS-level contract for
- * shared mode. Treating it as a `Config` reference would be cleaner in
- * pure domain code, but here we're at the harness's outermost runtime
- * boundary, where direct access is appropriate.
- */
-const readSharedDir: Effect.Effect<Option.Option<string>> = Effect.sync(() => {
-	const v = process.env[SHARED_DIR_ENV];
-	return v === undefined || v === '' ? Option.none<string>() : Option.some(v);
-});
+const readSharedDir: Effect.Effect<Option.Option<string>> = Effect.gen(function*() {
+	const opt = yield* Config.option(Config.string(SHARED_DIR_ENV));
+	return Option.flatMap(opt, (s) => (s === '' ? Option.none<string>() : Option.some(s)));
+}).pipe(
+	Effect.match({
+		onFailure: () => Option.none<string>(),
+		onSuccess: (o) => o,
+	}),
+);
 
 /**
  * Ensure a shallow clone of Effect-TS/effect-smol is available to the project.

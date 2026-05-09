@@ -15,7 +15,7 @@
  */
 
 import { BunRuntime, BunServices } from '@effect/platform-bun';
-import { Effect, FileSystem, Path, pipe } from 'effect';
+import { Config, Effect, FileSystem, Path, pipe } from 'effect';
 import * as Arr from 'effect/Array';
 import * as Option from 'effect/Option';
 import { Argument, Command, Flag } from 'effect/unstable/cli';
@@ -30,14 +30,22 @@ import { SEVERITY_RANK } from '../src/patterns/types.ts';
 
 const SEVERITY_VALUES = ['critical', 'high', 'medium', 'warning', 'info'] as const;
 
+const readEnvOption = (name: string): Effect.Effect<Option.Option<string>> =>
+	Effect.gen(function*() {
+		const opt = yield* Config.option(Config.string(name));
+		return Option.flatMap(opt, (s) => (s === '' ? Option.none<string>() : Option.some(s)));
+	}).pipe(Effect.match({ onFailure: () => Option.none<string>(), onSuccess: (o) => o }));
+
 const resolvePatternsDir = Effect.gen(function*() {
 	const fs = yield* FileSystem.FileSystem;
 	const path = yield* Path.Path;
 
-	const fromEnv = process.env.CLAUDE_CODE_EFFECT_PATTERNS_DIR;
-	if (fromEnv !== undefined && fromEnv !== '') {
-		const ok = yield* fs.exists(fromEnv).pipe(Effect.catch(() => Effect.succeed(false)));
-		if (ok) return fromEnv;
+	const fromEnv = yield* readEnvOption('CLAUDE_CODE_EFFECT_PATTERNS_DIR');
+	if (Option.isSome(fromEnv)) {
+		const ok = yield* fs.exists(fromEnv.value).pipe(
+			Effect.match({ onFailure: () => false, onSuccess: (b) => b }),
+		);
+		if (ok) return fromEnv.value;
 	}
 	const here = path.dirname(new URL(import.meta.url).pathname);
 	return path.resolve(here, '..', 'patterns');
@@ -57,15 +65,19 @@ const collectFiles = (
 			followSymlinks,
 		};
 
-		const perRoot = yield* Effect.forEach(roots, (root) =>
-			Effect.gen(function*() {
-				const absRoot = path.resolve(root);
-				if (respectGitignore) {
-					const tracked = yield* gitTrackedFiles(absRoot, opts.extensions);
-					if (Option.isSome(tracked)) return tracked.value;
-				}
-				return yield* walkDirectory(absRoot, opts);
-			}));
+		const perRoot = yield* Effect.forEach(
+			roots,
+			(root) =>
+				Effect.gen(function*() {
+					const absRoot = path.resolve(root);
+					if (respectGitignore) {
+						const tracked = yield* gitTrackedFiles(absRoot, opts.extensions);
+						if (Option.isSome(tracked)) return tracked.value;
+					}
+					return yield* walkDirectory(absRoot, opts);
+				}),
+			{ concurrency: 'unbounded' },
+		);
 		return pipe(perRoot, Arr.flatten, Arr.dedupe);
 	});
 

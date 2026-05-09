@@ -198,25 +198,29 @@ const walk = (dir: string): Effect.Effect<
 			}),
 		);
 
-		const results = yield* Effect.forEach(entries, (entry) =>
-			Effect.gen(function*() {
-				const full = path.join(dir, entry);
-				const info = yield* fs.stat(full).pipe(Effect.option);
-				if (Option.isNone(info)) return [] as ReadonlyArray<Pattern>;
+		const results = yield* Effect.forEach(
+			entries,
+			(entry) =>
+				Effect.gen(function*() {
+					const full = path.join(dir, entry);
+					const info = yield* fs.stat(full).pipe(Effect.option);
+					if (Option.isNone(info)) return [] as ReadonlyArray<Pattern>;
 
-				if (info.value.type === 'Directory') {
-					return yield* walk(full);
-				}
-				if (info.value.type !== 'File' || !entry.endsWith('.md') || isSkippedFile(entry)) {
-					return [] as ReadonlyArray<Pattern>;
-				}
+					if (info.value.type === 'Directory') {
+						return yield* walk(full);
+					}
+					if (info.value.type !== 'File' || !entry.endsWith('.md') || isSkippedFile(entry)) {
+						return [] as ReadonlyArray<Pattern>;
+					}
 
-				const loaded = yield* readPatternFile(full);
-				return Option.match(loaded, {
-					onNone: () => [] as ReadonlyArray<Pattern>,
-					onSome: (p) => [p] as ReadonlyArray<Pattern>,
-				});
-			}));
+					const loaded = yield* readPatternFile(full);
+					return Option.match(loaded, {
+						onNone: () => [] as ReadonlyArray<Pattern>,
+						onSome: (p) => [p] as ReadonlyArray<Pattern>,
+					});
+				}),
+			{ concurrency: 8 },
+		);
 		return results.flatMap((rs) => rs);
 	});
 

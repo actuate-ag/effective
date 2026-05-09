@@ -1,35 +1,46 @@
 import { it } from '@effect/vitest';
 import { BunServices } from '@effect/platform-bun';
-import { Effect, FileSystem, Path, type PlatformError } from 'effect';
-import { join } from 'node:path';
+import { Effect, FileSystem, Path, Schema, Scope, type PlatformError } from 'effect';
 import { expect } from 'vitest';
 
 import { loadPatterns } from '../../src/patterns/load.ts';
 import { patternMatches } from '../../src/patterns/match.ts';
 import type { Pattern } from '../../src/patterns/types.ts';
 
-const PATTERNS_DIR = join(__dirname, '..', '..', 'patterns');
+class PatternNotFound extends Schema.TaggedErrorClass<PatternNotFound>()(
+	'PatternNotFound',
+	{ name: Schema.String, message: Schema.String },
+) {}
+
+const patternsDir = Effect.gen(function*() {
+	const path = yield* Path.Path;
+	return path.resolve(__dirname, '..', '..', 'patterns');
+});
 
 const findPatternEffect = (
 	name: string,
-): Effect.Effect<Pattern, Error, FileSystem.FileSystem | Path.Path> =>
-	loadPatterns(PATTERNS_DIR).pipe(
-		Effect.flatMap((patterns) => {
-			const found = patterns.find((p) => p.name === name);
-			return found === undefined
-				? Effect.fail(new Error(`pattern not found: ${name}`))
-				: Effect.succeed(found);
-		}),
-	);
+): Effect.Effect<Pattern, PatternNotFound, FileSystem.FileSystem | Path.Path> =>
+	Effect.gen(function*() {
+		const dir = yield* patternsDir;
+		const patterns = yield* loadPatterns(dir);
+		const found = patterns.find((p) => p.name === name);
+		return found === undefined
+			? yield* new PatternNotFound({ name, message: `pattern not found: ${name}` })
+			: found;
+	});
 
 const writeFixture = (
 	filename: string,
 	source: string,
-): Effect.Effect<string, PlatformError.PlatformError, FileSystem.FileSystem | Path.Path> =>
+): Effect.Effect<
+	string,
+	PlatformError.PlatformError,
+	FileSystem.FileSystem | Path.Path | Scope.Scope
+> =>
 	Effect.gen(function*() {
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
-		const dir = yield* fs.makeTempDirectory({ prefix: 'cce-test-' });
+		const dir = yield* fs.makeTempDirectoryScoped({ prefix: 'cce-test-' });
 		const target = path.join(dir, filename);
 		yield* fs.writeFileString(target, source);
 		return target;
@@ -47,15 +58,21 @@ const expectMatchOutcome = (
 	tc: PatternTestCase,
 	source: string,
 	expected: boolean,
-): Effect.Effect<void, Error | PlatformError.PlatformError, FileSystem.FileSystem | Path.Path> =>
-	Effect.gen(function*() {
-		const tool = tc.tool ?? 'Edit';
-		const filename = tc.filename ?? 'sample.ts';
-		const pattern = yield* findPatternEffect(tc.name);
-		const filePath = yield* writeFixture(filename, source);
-		const matched = yield* patternMatches(pattern, tool, filePath, source);
-		expect(matched).toBe(expected);
-	});
+): Effect.Effect<
+	void,
+	PatternNotFound | PlatformError.PlatformError,
+	FileSystem.FileSystem | Path.Path
+> =>
+	Effect.scoped(
+		Effect.gen(function*() {
+			const tool = tc.tool ?? 'Edit';
+			const filename = tc.filename ?? 'sample.ts';
+			const pattern = yield* findPatternEffect(tc.name);
+			const filePath = yield* writeFixture(filename, source);
+			const matched = yield* patternMatches(pattern, tool, filePath, source);
+			expect(matched).toBe(expected);
+		}),
+	);
 
 export const testPattern = (tc: PatternTestCase): void => {
 	tc.shouldMatch.forEach((source, i) => {
