@@ -5,6 +5,8 @@ event: after
 name: avoid-process-env
 description: Avoid process.env - use Effect Config.* for environment variable access
 glob: '**/*.{ts,tsx}'
+ignoreGlob:
+    - '**/test-env-provider.ts'
 detector: ast
 pattern: process.env
 level: warning
