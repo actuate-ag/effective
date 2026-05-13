@@ -8,9 +8,9 @@ for the Claude Code surface (skills, hooks, slash commands).
 
 ## Table of contents
 
+- [Install](#install)
 - [What it ships](#what-it-ships)
 - [How it works](#how-it-works)
-- [Install](#install)
 - [Skill catalog](#skill-catalog) (35)
 - [Pattern catalog](#pattern-catalog) (46)
 - [Configuration](#configuration)
@@ -18,6 +18,31 @@ for the Claude Code surface (skills, hooks, slash commands).
 - [License](#license)
 
 ---
+
+## Install
+
+This repository hosts both the plugin and its marketplace (the
+`marketplace.json` at `.claude-plugin/marketplace.json` lists `effective` as a
+plugin sourced from this same repo at `./`).
+
+Inside Claude Code:
+
+```
+/plugin marketplace add actuate-ag/effective
+/plugin install effective@effective
+```
+
+Updates:
+
+```
+/plugin marketplace update effective
+```
+
+Uninstall:
+
+```
+/plugin uninstall effective@effective
+```
 
 ## What it ships
 
@@ -76,42 +101,6 @@ Skill autoload (built into Claude Code)
 The hooks always exit 0 — failures go to stderr only and never block a
 session. The reference clone is fail-silent; the pattern hook degrades to
 "no matches" if the catalog can't load.
-
-## Install
-
-This repository hosts both the plugin and its marketplace (the
-`marketplace.json` at `.claude-plugin/marketplace.json` lists `effective` as a
-plugin sourced from this same repo at `./`).
-
-Inside Claude Code:
-
-```
-/plugin marketplace add actuate-ag/effective
-/plugin install effective@effective
-```
-
-After install, the plugin auto-registers:
-
-- 35 skills under `/effective:<name>`.
-- `SessionStart` + `PostToolUse` hooks from `hooks/hooks.json`.
-- Slash commands `/effective:audit`, `/effective:plugin-version`,
-  `/effective:project-version`, `/effective:status`.
-- `bin/effect-version` added to the Bash tool's `PATH` for the session
-  (no `~/.local/bin/` pollution).
-- Reference clone created lazily under the plugin's own `cache/effect-v4/`
-  on first SessionStart.
-
-Updates:
-
-```
-/plugin marketplace update effective
-```
-
-Uninstall:
-
-```
-/plugin uninstall effective@effective
-```
 
 ---
 
@@ -296,34 +285,6 @@ The SessionStart hook compares the project's installed version against
 the plugin's pin and emits a warning (to both the user and the agent's
 session context) when they drift. Direction-aware: behind suggests
 `--align`, ahead suggests updating the plugin.
-
-### Effect version detection
-
-`src/reference/version.ts` reads `node_modules/effect/package.json` first
-and falls back to `pinnedEffectVersion` from `.claude-plugin/plugin.json`.
-The detected version is used by the drift comparison; the reference clone
-itself always reflects the plugin pin.
-
-### Reference clone location
-
-Single location, plugin-owned: `<plugin-root>/cache/effect-v4/`. Created
-on first `SessionStart` by the hook, refreshed when the plugin pin changes,
-removed cleanly when the plugin is uninstalled. The marker file
-`<plugin-root>/cache/effect-v4/.effective-version` records the
-`effect@<version>` git tag.
-
-Skill bodies reference the cache via fixed relative paths from skill
-location (e.g. `../../cache/effect-v4/LLMS.md`); the path is stable across
-plugin installs because skills always sit at `<plugin>/skills/<name>/SKILL.md`.
-
-### What this plugin never does
-
-- Modifies application source files directly. It may create/update
-  `<plugin-root>/cache/effect-v4/` for the reference clone.
-- Blocks tool calls. The PostToolUse hook only feeds context back to Claude.
-- Calls the network outside the `git clone` of the reference repo.
-- Mutates your shell RC, `~/.local/bin/`, or any path outside Claude
-  Code's plugin install directory.
 
 ---
 
