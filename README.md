@@ -10,10 +10,10 @@ for the Claude Code surface (skills, hooks, slash commands).
 
 - [Install](#install)
 - [What it ships](#what-it-ships)
-- [How it works](#how-it-works)
 - [Skill catalog](#skill-catalog) (35)
 - [Pattern catalog](#pattern-catalog) (46)
 - [Configuration](#configuration)
+- [How it works](#how-it-works)
 - [Development](#development)
 - [License](#license)
 
@@ -74,33 +74,6 @@ Uninstall:
   - `/effective:project-version` — show the active project's installed
     Effect version vs. the plugin pin, optionally align with `--align`.
   - `/effective:status` — print a snapshot of pin, cache, and hook state.
-
-## How it works
-
-```
-SessionStart
-  └─► hooks/ensure-reference-clone.ts
-        ├─ read pinnedEffectVersion from .claude-plugin/plugin.json
-        ├─ shallow-clone Effect-TS/effect-smol at effect@<pin>
-        ├─ atomic rename into <plugin-root>/cache/effect-v4/
-        └─ compare project's installed effect to the pin; warn on drift
-
-PostToolUse (Edit | Write | MultiEdit | NotebookEdit)
-  └─► hooks/pattern-feedback.ts
-        ├─ load 46 patterns from patterns/*.md
-        ├─ filter by tool regex + glob + ignoreGlob
-        ├─ run ast-grep (in-process, @ast-grep/napi) or comment-stripped regex
-        ├─ severity-sort + dedupe
-        └─ emit hookSpecificOutput.additionalContext to Claude
-
-Skill autoload (built into Claude Code)
-  └─► description-matched skills under skills/<name>/SKILL.md
-        (namespaced as /effective:<name>)
-```
-
-The hooks always exit 0 — failures go to stderr only and never block a
-session. The reference clone is fail-silent; the pattern hook degrades to
-"no matches" if the catalog can't load.
 
 ---
 
@@ -285,6 +258,35 @@ The SessionStart hook compares the project's installed version against
 the plugin's pin and emits a warning (to both the user and the agent's
 session context) when they drift. Direction-aware: behind suggests
 `--align`, ahead suggests updating the plugin.
+
+---
+
+## How it works
+
+```
+SessionStart
+  └─► hooks/ensure-reference-clone.ts
+        ├─ read pinnedEffectVersion from .claude-plugin/plugin.json
+        ├─ shallow-clone Effect-TS/effect-smol at effect@<pin>
+        ├─ atomic rename into <plugin-root>/cache/effect-v4/
+        └─ compare project's installed effect to the pin; warn on drift
+
+PostToolUse (Edit | Write | MultiEdit | NotebookEdit)
+  └─► hooks/pattern-feedback.ts
+        ├─ load 46 patterns from patterns/*.md
+        ├─ filter by tool regex + glob + ignoreGlob
+        ├─ run ast-grep (in-process, @ast-grep/napi) or comment-stripped regex
+        ├─ severity-sort + dedupe
+        └─ emit hookSpecificOutput.additionalContext to Claude
+
+Skill autoload (built into Claude Code)
+  └─► description-matched skills under skills/<name>/SKILL.md
+        (namespaced as /effective:<name>)
+```
+
+The hooks always exit 0 — failures go to stderr only and never block a
+session. The reference clone is fail-silent; the pattern hook degrades to
+"no matches" if the catalog can't load.
 
 ---
 
