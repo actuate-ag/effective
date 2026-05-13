@@ -26,7 +26,7 @@ constraints:
         regex: '(?i)^["''][^"'']*(api[_-]?key|auth[_-]?token|token|secret|password|passwd|private[_-]?key|client[_-]?secret|database[_-]?url|db[_-]?url|connection[_-]?string|dsn)[^"'']*["'']$'
 level: warning
 suggestSkills:
-    - effect-config
+    - config
 ---
 
 # Prefer Redacted Config for Secrets

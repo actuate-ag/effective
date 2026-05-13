@@ -9,7 +9,7 @@ detector: ast
 pattern: Schema.Struct($$$)
 level: warning
 suggestSkills:
-    - effect-domain-modeling
+    - domain-modeling
 ---
 
 # Use `Schema.Class` Instead of `Schema.Struct`

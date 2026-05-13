@@ -13,7 +13,7 @@ rule:
         - pattern: switch ($A._tag) { $$$ }
 level: warning
 suggestSkills:
-    - effect-pattern-matching
+    - pattern-matching
 ---
 
 # Avoid Direct `_tag` Property Checks

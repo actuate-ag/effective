@@ -21,7 +21,7 @@ constraints:
         regex: '^["''](?:node:)?os["'']$'
 level: warning
 suggestSkills:
-    - effect-filesystem
+    - filesystem
 ---
 
 # Use Scoped Temp Files for Automatic Cleanup

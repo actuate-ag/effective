@@ -18,7 +18,7 @@ constraints:
         regex: '^["''](?:node:)?fs/promises["'']$'
 level: warning
 suggestSkills:
-    - effect-filesystem
+    - filesystem
 ---
 
 # Use FileSystem Service Instead of `fs/promises`

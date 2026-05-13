@@ -31,7 +31,7 @@ pattern:
     - '$A.appendFileSync($$$)'
 level: high
 suggestSkills:
-    - effect-filesystem
+    - filesystem
 ---
 
 # Avoid Synchronous Filesystem Operations

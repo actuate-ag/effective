@@ -1,4 +1,4 @@
-import { ConfigProvider, Effect, Layer } from 'effect';
+import { ConfigProvider, Effect, Layer } from "effect";
 
 /**
  * A `ConfigProvider` that reads `process.env` on every access instead of
@@ -10,13 +10,13 @@ import { ConfigProvider, Effect, Layer } from 'effect';
  * because env vars are stable from process spawn through module load.
  */
 export const dynamicEnvLayer: Layer.Layer<never> = ConfigProvider.layer(
-	ConfigProvider.make((path) =>
-		Effect.sync(() => {
-			const key = path.map(String).join('_');
-			const value = process.env[key];
-			return value === undefined ? undefined : ConfigProvider.makeValue(value);
-		})
-	),
+  ConfigProvider.make((path) =>
+    Effect.sync(() => {
+      const key = path.map(String).join("_");
+      const value = process.env[key];
+      return value === undefined ? undefined : ConfigProvider.makeValue(value);
+    })
+  )
 );
 
 /**
@@ -26,11 +26,11 @@ export const dynamicEnvLayer: Layer.Layer<never> = ConfigProvider.layer(
  * exercises an env-driven branch.
  */
 export const setEnv = (name: string, value: string): Effect.Effect<void> =>
-	Effect.sync(() => {
-		process.env[name] = value;
-	});
+  Effect.sync(() => {
+    process.env[name] = value;
+  });
 
 export const unsetEnv = (name: string): Effect.Effect<void> =>
-	Effect.sync(() => {
-		delete process.env[name];
-	});
+  Effect.sync(() => {
+    delete process.env[name];
+  });

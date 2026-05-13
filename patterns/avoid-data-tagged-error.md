@@ -9,7 +9,7 @@ detector: ast
 pattern: Data.TaggedError($$$)
 level: warning
 suggestSkills:
-    - effect-error-handling
+    - error-handling
 ---
 
 # Use `Schema.TaggedErrorClass` Instead of `Data.TaggedError`

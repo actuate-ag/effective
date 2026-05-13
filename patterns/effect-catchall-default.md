@@ -13,7 +13,7 @@ pattern:
     - 'Effect.catch($X => sync($$$))'
 level: warning
 suggestSkills:
-    - effect-error-handling
+    - error-handling
 ---
 
 # Avoid `Effect.catch` with Default Values

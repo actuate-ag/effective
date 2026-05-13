@@ -9,7 +9,7 @@ detector: ast
 pattern: Math.random()
 level: warning
 suggestSkills:
-    - effect-testing
+    - testing
 ---
 
 # Use Random Service Instead of `Math.random()`

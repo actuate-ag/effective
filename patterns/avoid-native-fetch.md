@@ -9,7 +9,7 @@ detector: ast
 pattern: fetch($$$ARGS)
 level: warning
 suggestSkills:
-    - effect-http-api
+    - http-api
 ---
 
 # Use Effect HTTP Modules Instead of Native `fetch`

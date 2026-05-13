@@ -9,7 +9,7 @@ detector: ast
 pattern: console.$M($$$)
 level: warning
 suggestSkills:
-    - effect-observability
+    - observability
 ---
 
 # Use Effect Console Instead of console.\*

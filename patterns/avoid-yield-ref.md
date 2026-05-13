@@ -13,7 +13,7 @@ constraints:
         regex: '(^ref$|Ref$|^deferred$|Deferred$|^fiber$|Fiber$|^latch$|Latch$)'
 level: warning
 suggestSkills:
-    - effect-schema-v4
+    - schema-v4
 ---
 
 # Do Not `yield*` Ref, Deferred, Fiber, or Latch Directly

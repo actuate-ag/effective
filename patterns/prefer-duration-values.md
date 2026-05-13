@@ -26,7 +26,7 @@ constraints:
         kind: number
 level: warning
 suggestSkills:
-    - effect-testing
+    - testing
 ---
 
 # Prefer `Duration` Values

@@ -17,7 +17,7 @@ rule:
         stopBy: end
 level: critical
 suggestSkills:
-    - effect-error-handling
+    - error-handling
 ---
 
 # Do Not `throw` Inside `Effect.gen`

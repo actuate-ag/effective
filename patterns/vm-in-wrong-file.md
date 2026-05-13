@@ -8,7 +8,7 @@ glob: '**/!(*.vm).{ts,tsx}'
 pattern: (interface\s+\w+VM\s*\{|Context\.(Service|GenericTag)<\w*VM>|Layer\.(effect|scoped)\(\s*\w+VM)
 level: critical
 suggestSkills:
-    - effect-react-vm
+    - react-vm
 ---
 
 # VM Code in Wrong File

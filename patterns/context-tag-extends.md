@@ -15,7 +15,7 @@ rule:
         - pattern: 'Effect.Service<$$$>()'
 level: warning
 suggestSkills:
-    - effect-service-implementation
+    - service-implementation
 ---
 
 # Avoid `Context.Tag` and `Effect.Service` — Use `Context.Service`

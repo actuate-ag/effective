@@ -29,7 +29,7 @@ pattern:
     - 'useInsertionEffect($$$)'
 level: high
 suggestSkills:
-    - effect-react-vm
+    - react-vm
 ---
 
 # Avoid React Hooks - Use View Models

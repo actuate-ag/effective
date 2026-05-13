@@ -57,7 +57,7 @@ constraints:
                       regex: '\bconcurrency\b'
 level: warning
 suggestSkills:
-    - effect-concurrency-testing
+    - concurrency-testing
 ---
 
 # Specify Effect Collection Concurrency

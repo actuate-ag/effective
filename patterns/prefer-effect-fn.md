@@ -31,7 +31,7 @@ rule:
             stopBy: end
 level: warning
 suggestSkills:
-    - effect-service-implementation
+    - service-implementation
 ---
 
 # Prefer `Effect.fn` for Service Methods

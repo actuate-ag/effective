@@ -9,8 +9,8 @@ detector: ast
 pattern: $A as $B
 level: info
 suggestSkills:
-    - effect-domain-modeling
-    - effect-domain-predicates
+    - domain-modeling
+    - domain-predicates
 ---
 
 # Stop — do you actually need `as`?
@@ -41,6 +41,6 @@ Most `as` casts can be replaced. Try these in order:
 
 5. **`Predicate.isString` / `isNumber` / `isRecord` / etc.** — Effect's built-in type guards for primitives and structures.
 
-6. **`MyEnum.$is("Tag")`** or **`Schema.is(VariantSchema)`** — type guard for discriminated union variants. See `effect-domain-modeling` skill for the full pattern.
+6. **`MyEnum.$is("Tag")`** or **`Schema.is(VariantSchema)`** — type guard for discriminated union variants. See `domain-modeling` skill for the full pattern.
 
 `as const` is fine — it narrows to literal types. Every other `as` is the compiler waving a white flag. Fix the types instead.

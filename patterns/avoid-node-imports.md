@@ -26,7 +26,7 @@ constraints:
         regex: '^["'']node:[^"'']+["'']$'
 level: warning
 suggestSkills:
-    - effect-platform-abstraction
+    - platform-abstraction
 ---
 
 # Use @effect/platform Instead of `node:` Imports

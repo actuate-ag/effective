@@ -18,7 +18,7 @@ constraints:
         regex: '^["'']@effect/platform-bun(?:/[^"'']*)?["'']$'
 level: warning
 suggestSkills:
-    - effect-platform-layers
+    - platform-layers
 ---
 
 # Avoid Platform Coupling in Bindings

@@ -1,17 +1,20 @@
-# claude-code-effect
+# effective
 
-A Claude Code plugin that helps Claude write correct, clean, and idiomatic
-[Effect v4](https://effect.website) TypeScript.
+A Claude Code plugin that helps Claude write correct, clean, and
+idiomatic [Effect v4](https://effect.website) TypeScript.
 
 Adapted from [`pi-effect-harness`](https://github.com/mpsuesser/pi-effect-harness)
-for the Claude Code surface (skills, hooks, slash commands).
+for the Claude Code surface (skills, hooks, slash commands). The
+repository, plugin, marketplace, and skill namespace are all named
+`effective` — hence the redundant-looking `effective@effective` in install
+commands (which read `<plugin>@<marketplace>`).
 
 ## Table of contents
 
 - [What it ships](#what-it-ships)
 - [How it works](#how-it-works)
 - [Install](#install)
-- [The audit CLI](#the-audit-cli)
+- [The audit script](#the-audit-script)
 - [Skill catalog](#skill-catalog) (35)
 - [Pattern catalog](#pattern-catalog) (46)
 - [Configuration](#configuration)
@@ -22,35 +25,46 @@ for the Claude Code surface (skills, hooks, slash commands).
 
 ## What it ships
 
-- **35 `effect-*` skills** covering schema, layers, services, errors, config,
-  observability, streaming, persistence, networking, CLI, testing, React,
-  and migration. Discoverable via Claude Code's progressive-disclosure skill
-  mechanism — Claude invokes the relevant skill on demand based on the task.
+- **35 skills** under the `effective` namespace covering schema, layers,
+  services, errors, config, observability, streaming, persistence,
+  networking, CLI, testing, React, and migration. Claude invokes the
+  relevant skill on demand based on the task — surface them as
+  `/effective:<skill-name>` (e.g. `/effective:error-handling`).
 - **A `SessionStart` hook** that maintains a shallow clone of
-  [`Effect-TS/effect-smol`](https://github.com/Effect-TS/effect-smol) at the tag
-  matching your project's installed `effect` version, under
-  `.references/effect-v4/`. Claude reads it instead of guessing v4 APIs.
+  [`Effect-TS/effect-smol`](https://github.com/Effect-TS/effect-smol) at the
+  version pinned by the plugin (`pinnedEffectVersion` in
+  `.claude-plugin/plugin.json`), under the plugin's own `cache/effect-v4/`
+  directory. Claude reads it instead of guessing v4 APIs. The hook also
+  warns when the active project's installed `effect` version drifts from
+  the plugin pin.
 - **A `PostToolUse` hook** that runs 46 ast-grep / regex pattern detectors
-  against every successful Edit/Write/MultiEdit and surfaces matches back to
-  Claude in-band — severity-sorted, deduped, with a hint to invoke the
+  against every successful Edit/Write/MultiEdit and surfaces matches back
+  to Claude in-band — severity-sorted, deduped, with a hint to invoke the
   suggested skill.
-- **A short CLAUDE.md fragment** to drop into a project so Claude knows to
-  invoke `effect-*` skills before writing Effect code.
-- **An `effect-audit` CLI** that runs the same pattern catalog against
+- **A `codebase-guidance` skill** that's auto-invoked on any Effect v4
+  codebase to brief Claude on v3→v4 renames, where the reference clone
+  lives, which skills exist, and what the pattern-feedback hook does.
+- **An `effect-audit` script** that runs the same pattern catalog against
   existing code (one file, a directory, or a whole repo) — for one-shot
-  cleanups and CI gating. The CLI core is shared with the PostToolUse hook,
+  cleanups and CI gating. The core is shared with the PostToolUse hook,
   so any pattern that fires live also fires on audit.
-- **`/effect-status` and `/effect-audit` slash commands** that report
-  reference-clone state and run the audit CLI within a session.
+- **Slash commands** (under the `effective` namespace):
+  - `/effective:audit` — run the audit script.
+  - `/effective:plugin-version` — read or update the Effect version the
+    plugin pins (maintainer-side).
+  - `/effective:project-version` — show the active project's installed
+    Effect version vs. the plugin pin, optionally align with `--align`.
+  - `/effective:status` — print a snapshot of pin, cache, and hook state.
 
 ## How it works
 
 ```
 SessionStart
   └─► hooks/ensure-reference-clone.ts
-        ├─ detect node_modules/effect/package.json version
-        ├─ shallow-clone Effect-TS/effect-smol at effect@<version>
-        └─ atomic rename into .references/effect-v4/, idempotent via marker
+        ├─ read pinnedEffectVersion from .claude-plugin/plugin.json
+        ├─ shallow-clone Effect-TS/effect-smol at effect@<pin>
+        ├─ atomic rename into <plugin-root>/cache/effect-v4/
+        └─ compare project's installed effect to the pin; warn on drift
 
 PostToolUse (Edit | Write | MultiEdit | NotebookEdit)
   └─► hooks/pattern-feedback.ts
@@ -61,7 +75,8 @@ PostToolUse (Edit | Write | MultiEdit | NotebookEdit)
         └─ emit hookSpecificOutput.additionalContext to Claude
 
 Skill autoload (built into Claude Code)
-  └─► description-matched skills under skills/effect-*
+  └─► description-matched skills under skills/<name>/SKILL.md
+        (namespaced as /effective:<name>)
 ```
 
 The hooks always exit 0 — failures go to stderr only and never block a
@@ -70,87 +85,72 @@ session. The reference clone is fail-silent; the pattern hook degrades to
 
 ## Install
 
-One script, two modes:
+This repository hosts both the plugin and its marketplace (the
+`marketplace.json` at `.claude-plugin/marketplace.json` lists `effective` as a
+plugin sourced from this same repo at `./`).
 
-```bash
-./scripts/install-user.sh                     # user-level (default)
-./scripts/install-user.sh --project           # project-level (current dir)
-./scripts/install-user.sh --project /some/dir # project-level (explicit dir)
-./scripts/install-user.sh [--project [DIR]] --uninstall
+### From this marketplace (recommended for end users)
+
+Inside Claude Code:
+
+```
+/plugin marketplace add <owner>/effective
+/plugin install effective@effective
 ```
 
-### User mode (default)
+Replace `<owner>` with the GitHub owner where this repo is hosted. After
+install, the plugin auto-registers:
 
-For developers who write Effect across multiple repos.
+- 35 skills under `/effective:<name>`.
+- `SessionStart` + `PostToolUse` hooks from `hooks/hooks.json`.
+- Slash commands `/effective:audit`, `/effective:plugin-version`,
+  `/effective:project-version`, `/effective:status`.
+- `bin/effect-audit` and `bin/effect-version` added to the Bash tool's
+  `PATH` for the session (no `~/.local/bin/` pollution).
+- Reference clone created lazily under the plugin's own `cache/effect-v4/`
+  on first SessionStart.
 
-| Target | Action |
-|---|---|
-| `~/.claude/skills/effect-*` | symlink the 35 skills |
-| `~/.claude/CLAUDE.md` | append the Effect fragment (idempotent, marker-guarded) |
-| `~/.claude/settings.json` | merge `SessionStart` + `PostToolUse` hook entries (preserves existing settings) |
-| `~/.references/effect-v4/` | shallow-clone Effect-TS/effect-smol once at the default version |
-| `~/.zshrc` or `~/.bashrc` | append `export CLAUDE_CODE_EFFECT_REFERENCE_DIR=~/.references/effect-v4` |
+Updates:
 
-Open a new shell after install. The SessionStart hook in any project will
-symlink `<project>/.references/effect-v4` → `~/.references/effect-v4`.
-
-**Cost note**: the `PostToolUse` hook fires on every Edit/Write in every
-project — including non-Effect ones. In a non-Effect repo it adds ~50–100ms
-per edit (bun startup + a no-match pattern run). For Effect-heavy workflows
-this is the right tradeoff; if you only write Effect in one or two repos,
-use `--project` instead.
-
-### Project mode (`--project [DIR]`)
-
-For scoping everything to a single repo.
-
-| Target | Action |
-|---|---|
-| `<DIR>/.claude/skills/effect-*` | symlink the 35 skills |
-| `<DIR>/CLAUDE.md` | append the Effect fragment (idempotent, marker-guarded) |
-| `<DIR>/.claude/settings.json` | merge `SessionStart` + `PostToolUse` hook entries |
-| `<DIR>/.gitignore` | append `.references/` if missing |
-| `<DIR>/.references/effect-v4/` | clone lazily on first SessionStart (per-project, not shared) |
-
-### Uninstall
-
-```bash
-./scripts/install-user.sh --uninstall                  # reverse user-mode install
-./scripts/install-user.sh --project /some/dir --uninstall  # reverse project-mode install
+```
+/plugin marketplace update effective
 ```
 
-Removes our skill symlinks, strips the CLAUDE.md fragment between markers,
-strips our hook entries from `settings.json`, and (user mode) removes the
-shell rc export. The reference clone is preserved as data — `rm -rf` it
-manually if no longer wanted.
+Uninstall:
 
-### As a Claude Code plugin (alternative)
-
-```bash
-claude plugin install <path-or-url>/claude-code-effect
+```
+/plugin uninstall effective@effective
 ```
 
-The plugin's `hooks/hooks.json` wires both hooks; `skills/` is auto-discovered.
-You can still run `./scripts/install-user.sh` afterwards just to set up the
-shared reference clone + shell rc env var.
+### Development (local clone)
+
+For working on the plugin itself, point Claude Code at a local checkout:
+
+```bash
+git clone https://github.com/<owner>/effective
+claude --plugin-dir ./effective
+```
+
+Use `/reload-plugins` inside Claude Code to pick up changes as you iterate.
 
 ---
 
-## The audit CLI
+## The audit script
 
-`effect-audit` runs the pattern catalog against existing code. Same detector
-core as the PostToolUse hook, different surface: many files, structured
-output, CI-friendly exit codes.
+`scripts/effect-audit.ts` runs the pattern catalog against existing code.
+Same detector core as the PostToolUse hook, different surface: many files,
+structured output, CI-friendly exit codes. Invoke directly via `bun run`,
+or through the `/effect-audit` slash command inside a Claude Code session.
 
 ### Quick start
 
 ```bash
-effect-audit                            # audit . (cwd)
-effect-audit src/                       # audit a directory
-effect-audit src/Foo.ts src/Bar.ts      # audit specific files
-effect-audit --format json              # JSON output for tooling
-effect-audit --min-severity high        # filter to high/critical
-effect-audit --exit-on critical         # CI gate: non-zero on critical
+bun run scripts/effect-audit.ts                            # audit . (cwd)
+bun run scripts/effect-audit.ts src/                       # audit a directory
+bun run scripts/effect-audit.ts src/Foo.ts src/Bar.ts      # audit specific files
+bun run scripts/effect-audit.ts --format json              # JSON output for tooling
+bun run scripts/effect-audit.ts --min-severity high        # filter to high/critical
+bun run scripts/effect-audit.ts --exit-on critical         # CI gate: non-zero on critical
 ```
 
 ### Defaults
@@ -159,7 +159,7 @@ effect-audit --exit-on critical         # CI gate: non-zero on critical
 |---|---|
 | Recursion | `.ts`/`.tsx` only, recursive |
 | `.gitignore` | honored via `git ls-files --cached --others --exclude-standard` when inside a git repo; falls back to a tree walk that hard-skips `.git/`, `node_modules/`, `.references/` |
-| Symlinks | skipped (so `.references/effect-v4` doesn't pull in the entire Effect source) |
+| Symlinks | skipped by default (pass `--follow-symlinks` to include) |
 | Format | human-readable summary + per-match lines |
 | `--min-severity` | `warning` (drops the 6 noisy `info` patterns by default) |
 | `--exit-on` | `critical` (CI exits non-zero on critical hits only) |
@@ -168,16 +168,14 @@ effect-audit --exit-on critical         # CI gate: non-zero on critical
 
 ```yaml
 # .github/workflows/effect-audit.yml
-- run: bun run audit:effect              # if installed via --project
-# or
-- run: bun run scripts/audit.ts --exit-on critical  # in-repo
+- run: bun run scripts/effect-audit.ts --exit-on critical
 ```
 
 ### Inside a Claude Code session
 
-Run `/effect-audit` and Claude will execute the CLI, read the matches, and
-either fix them or surface them for your input. Each match includes the
-suggested `effect-*` skill, so Claude knows to load the right context
+Run `/effect-audit` and Claude will execute the script, read the matches,
+and either fix them or surface them for your input. Each match includes
+the suggested `effect-*` skill, so Claude knows to load the right context
 before writing fixes.
 
 ---
@@ -191,81 +189,81 @@ Claude Code autoload triggering.
 
 | Skill | Description |
 |---|---|
-| `effect-schema-v4` | Authoritative reference for Effect Schema v4 API changes and v3 → v4 migration. Find-and-replace tables, breaking changes, idiom shifts. |
-| `effect-schema-composition` | `Schema.decodeTo`, transformations, filters, multi-stage validation. |
-| `effect-domain-modeling` | Production-ready domain models with `Schema.TaggedStruct` — ADTs, predicates, orders, guards, match functions. |
-| `effect-domain-predicates` | Predicates and orders for domain types using typeclass patterns. |
-| `effect-typeclass-design` | Curried signatures and dual data-first / data-last APIs. |
-| `effect-pattern-matching` | `Data.TaggedEnum`, `$match`, `$is`, `Match.typeTags`, `Effect.match`. Avoid manual `_tag` checks. |
-| `effect-context-witness` | When to use `Context.Service` witness vs. capability patterns; coupling trade-offs. |
-| `effect-optics` | `Iso`, `Lens`, `Prism`, `Optional`, `Traversal` — composable, type-safe access and immutable updates to nested data. |
+| `schema-v4` | Authoritative reference for Effect Schema v4 API changes and v3 → v4 migration. Find-and-replace tables, breaking changes, idiom shifts. |
+| `schema-composition` | `Schema.decodeTo`, transformations, filters, multi-stage validation. |
+| `domain-modeling` | Production-ready domain models with `Schema.TaggedStruct` — ADTs, predicates, orders, guards, match functions. |
+| `domain-predicates` | Predicates and orders for domain types using typeclass patterns. |
+| `typeclass-design` | Curried signatures and dual data-first / data-last APIs. |
+| `pattern-matching` | `Data.TaggedEnum`, `$match`, `$is`, `Match.typeTags`, `Effect.match`. Avoid manual `_tag` checks. |
+| `context-witness` | When to use `Context.Service` witness vs. capability patterns; coupling trade-offs. |
+| `optics` | `Iso`, `Lens`, `Prism`, `Optional`, `Traversal` — composable, type-safe access and immutable updates to nested data. |
 
 ### Layers, services, runtime (5)
 
 | Skill | Description |
 |---|---|
-| `effect-layer-design` | Designing and composing layers for clean dependency management. |
-| `effect-service-implementation` | Fine-grained service capabilities; avoiding monolithic designs. |
-| `effect-managed-runtime` | Bridging Effect into non-Effect frameworks (Hono, Express, Fastify, Lambda, Workers) via `ManagedRuntime`. |
-| `effect-platform-abstraction` | Cross-platform file I/O, process spawning, HTTP clients, terminal — the abstraction itself. |
-| `effect-platform-layers` | Structuring platform-layer provision for cross-platform applications. |
+| `layer-design` | Designing and composing layers for clean dependency management. |
+| `service-implementation` | Fine-grained service capabilities; avoiding monolithic designs. |
+| `managed-runtime` | Bridging Effect into non-Effect frameworks (Hono, Express, Fastify, Lambda, Workers) via `ManagedRuntime`. |
+| `platform-abstraction` | Cross-platform file I/O, process spawning, HTTP clients, terminal — the abstraction itself. |
+| `platform-layers` | Structuring platform-layer provision for cross-platform applications. |
 
 ### Errors, config, observability (4)
 
 | Skill | Description |
 |---|---|
-| `effect-error-handling` | `Schema.TaggedErrorClass`, `catchTag`/`catchTags`, `catchReason`/`catchReasons`, `Cause`, `ErrorReporter`, recovery patterns. |
-| `effect-config` | `Config` and `ConfigProvider` — env vars, structured config, test config, `.env`, JSON, custom sources. |
-| `effect-observability` | Structured logging, distributed tracing, metrics; OTLP/Prometheus export. |
-| `effect-wide-events` | Wide events (canonical log lines) for observability. Conceptual guide for instrumentation strategy. |
+| `error-handling` | `Schema.TaggedErrorClass`, `catchTag`/`catchTags`, `catchReason`/`catchReasons`, `Cause`, `ErrorReporter`, recovery patterns. |
+| `config` | `Config` and `ConfigProvider` — env vars, structured config, test config, `.env`, JSON, custom sources. |
+| `observability` | Structured logging, distributed tracing, metrics; OTLP/Prometheus export. |
+| `wide-events` | Wide events (canonical log lines) for observability. Conceptual guide for instrumentation strategy. |
 
 ### Data, IO, concurrency (7)
 
 | Skill | Description |
 |---|---|
-| `effect-stream` | Pull-based streaming pipelines — creation, transformation, consumption, encoding (NDJSON/Msgpack), concurrency, resource safety. |
-| `effect-batching` | `Request`, `RequestResolver`, `SqlResolver` — N+1 elimination, batched data-fetching layers, request caching. |
-| `effect-pubsub-event-bus` | Typed event buses with `PubSub` and `Stream`. |
-| `effect-filesystem` | Cross-platform file I/O across Node.js, Bun, browser. |
-| `effect-path` | Cross-platform path operations — joining, resolving, URL conversion. |
-| `effect-command-executor` | `ChildProcess` — shell commands, captured output, piping, streaming, scoped lifecycle. |
-| `effect-concurrency-testing` | Testing `PubSub`, `Deferred`, `Latch`, `Fiber`, `SubscriptionRef`, `Stream`. |
+| `stream` | Pull-based streaming pipelines — creation, transformation, consumption, encoding (NDJSON/Msgpack), concurrency, resource safety. |
+| `batching` | `Request`, `RequestResolver`, `SqlResolver` — N+1 elimination, batched data-fetching layers, request caching. |
+| `pubsub-event-bus` | Typed event buses with `PubSub` and `Stream`. |
+| `filesystem` | Cross-platform file I/O across Node.js, Bun, browser. |
+| `path` | Cross-platform path operations — joining, resolving, URL conversion. |
+| `command-executor` | `ChildProcess` — shell commands, captured output, piping, streaming, scoped lifecycle. |
+| `concurrency-testing` | Testing `PubSub`, `Deferred`, `Latch`, `Fiber`, `SubscriptionRef`, `Stream`. |
 
 ### Persistence & networking (4)
 
 | Skill | Description |
 |---|---|
-| `effect-sql` | `SqlClient`, `SqlSchema`, `SqlModel` (CRUD repos), `SqlResolver`, `Migrator`. |
-| `effect-http-api` | `HttpApi`, `HttpApiClient`, `HttpApiBuilder` — typed endpoints, security middleware, OpenAPI, derived clients. |
-| `effect-rpc-cluster` | RPC endpoints, cluster routing, workflow patterns with Effect RPC and Cluster. |
-| `effect-workflow` | Durable workflows with `Workflow`, `Activity`, `DurableClock`, `DurableDeferred` — execution that survives restarts, compensation (saga), distribution via Cluster. |
+| `sql` | `SqlClient`, `SqlSchema`, `SqlModel` (CRUD repos), `SqlResolver`, `Migrator`. |
+| `http-api` | `HttpApi`, `HttpApiClient`, `HttpApiBuilder` — typed endpoints, security middleware, OpenAPI, derived clients. |
+| `rpc-cluster` | RPC endpoints, cluster routing, workflow patterns with Effect RPC and Cluster. |
+| `workflow` | Durable workflows with `Workflow`, `Activity`, `DurableClock`, `DurableDeferred` — execution that survives restarts, compensation (saga), distribution via Cluster. |
 
 ### CLI (1)
 
 | Skill | Description |
 |---|---|
-| `effect-cli` | Type-safe CLI applications — argument parsing, options, commands, dependency injection. |
+| `cli` | Type-safe CLI applications — argument parsing, options, commands, dependency injection. |
 
 ### Testing & migration (2)
 
 | Skill | Description |
 |---|---|
-| `effect-testing` | `@effect/vitest` and `it.effect(...)` — services, layers, time-dependent effects, error handling, property-based testing. |
-| `effect-incremental-migration` | Migrating async/Promise-based modules to Effect services while preserving backward compatibility. |
+| `testing` | `@effect/vitest` and `it.effect(...)` — services, layers, time-dependent effects, error handling, property-based testing. |
+| `incremental-migration` | Migrating async/Promise-based modules to Effect services while preserving backward compatibility. |
 
 ### React (3)
 
 | Skill | Description |
 |---|---|
-| `effect-atom-state` | Reactive state management with Effect Atom for React applications. |
-| `effect-react-composition` | Composable React components using Effect Atom; avoiding boolean props; integrating with Effect's reactive state. |
-| `effect-react-vm` | The VM (View Model) pattern for reactive, testable frontend state management. |
+| `atom-state` | Reactive state management with Effect Atom for React applications. |
+| `react-composition` | Composable React components using Effect Atom; avoiding boolean props; integrating with Effect's reactive state. |
+| `react-vm` | The VM (View Model) pattern for reactive, testable frontend state management. |
 
 ### Cross-cutting (1)
 
 | Skill | Description |
 |---|---|
-| `effect-first-laws` | The full Effect-first development specification (EF-1 … EF-40+) — tagged errors, Option, Schema, canonical imports, Match, services and layers, Clock, observability, Duration, JSON via Schema, scoped resources, retries, timeouts, structured concurrency, Config, Redacted, defects vs. failures, layer memoization, schema-first domain modeling, branded guards, equivalence, native sort, dual APIs. |
+| `first-laws` | The full Effect-first development specification (EF-1 … EF-40+) — tagged errors, Option, Schema, canonical imports, Match, services and layers, Clock, observability, Duration, JSON via Schema, scoped resources, retries, timeouts, structured concurrency, Config, Redacted, defects vs. failures, layer memoization, schema-first domain modeling, branded guards, equivalence, native sort, dual APIs. |
 
 ---
 
@@ -345,41 +343,43 @@ declared per pattern as either ast-grep rules or comment-skipping regex.
 
 ## Configuration
 
+### Effect version pin
+
+The plugin pins a specific Effect version in
+`.claude-plugin/plugin.json` under the `pinnedEffectVersion` field. This
+is the version the plugin's skills, patterns, and reference clone are
+validated against. Two slash commands manage it:
+
+| Command | Purpose |
+|---|---|
+| `/effective:plugin-version` | Print the current pin. |
+| `/effective:plugin-version <version>` | Strict-by-default verify flow inside the plugin repo: bump this repo's `effect` and `@effect/*` deps, `bun install`, `bun run check`, `bun run test`. Writes the new pin only if everything passes. Reverts `package.json` + `bun.lock` on any failure. `--force` writes the pin regardless. |
+| `/effective:project-version` | In a consumer project: print the project's installed Effect version, the plugin's pin, and whether they match (equal / project behind / project ahead). |
+| `/effective:project-version --align` | Bump the project's `effect` + `@effect/*` deps to the plugin's pin (preserving prefixes), run `bun install`, then `bun run check` and `bun run test` if those scripts exist. |
+
+The SessionStart hook compares the project's installed version against
+the plugin's pin and emits a warning (to both the user and the agent's
+session context) when they drift. Direction-aware: behind suggests
+`--align`, ahead suggests updating the plugin.
+
 ### Effect version detection
 
-`hooks/lib/effect-version.ts` reads `node_modules/effect/package.json` and
-falls back to `4.0.0-beta.59`. The detected version is used as the
-`effect@<version>` git tag for the reference clone.
+`src/reference/version.ts` reads `node_modules/effect/package.json` first
+and falls back to `pinnedEffectVersion` from `.claude-plugin/plugin.json`.
+The detected version is used by the drift comparison; the reference clone
+itself always reflects the plugin pin.
 
 ### Reference clone location
 
-Two modes, selected by the `CLAUDE_CODE_EFFECT_REFERENCE_DIR` env var:
-
-| Mode | Env var | Clone path | Per-project path |
-|---|---|---|---|
-| **Shared** (default after `install-user.sh` user mode) | set | `$CLAUDE_CODE_EFFECT_REFERENCE_DIR` (default `~/.references/effect-v4`) | symlink → shared |
-| **Per-project** | unset | n/a | `<cwd>/.references/effect-v4/` |
-
-The marker file is `<clone>/.claude-code-effect-version` and contains the
+Single location, plugin-owned: `<plugin-root>/cache/effect-v4/`. Created
+on first `SessionStart` by the hook, refreshed when the plugin pin changes,
+removed cleanly when the plugin is uninstalled. The marker file
+`<plugin-root>/cache/effect-v4/.claude-code-effect-version` records the
 `effect@<version>` git tag.
 
-**Why shared mode is the default for user-mode installs.** A typical Effect
-v4 reference clone is ~50–80 MB. Carrying one per project across 5–10 repos
-adds up. Shared mode clones once and symlinks every project's
-`.references/effect-v4` at it, so skill bodies and the CLAUDE.md fragment
-keep referencing `.references/effect-v4/...` transparently.
-
-**Version-mismatch policy in shared mode.** If a project pins a *different*
-`effect` version than the canonical clone, the hook **does not** re-clone
-(that would hose every other project pointing at it). It writes a one-line
-warning to stderr and continues using the existing clone. Either align
-versions across your projects, or unset `CLAUDE_CODE_EFFECT_REFERENCE_DIR`
-in that one shell to fall back to per-project mode.
-
-**Existing per-project directory blocks the symlink.** If a project already
-has a real `<project>/.references/effect-v4` directory (e.g. from prior
-per-project use), the hook refuses to clobber it. Remove it first:
-`rm -rf <project>/.references/effect-v4` and re-run the SessionStart hook.
+Skill bodies reference the cache via fixed relative paths from skill
+location (e.g. `../../cache/effect-v4/LLMS.md`); the path is stable across
+plugin installs because skills always sit at `<plugin>/skills/<name>/SKILL.md`.
 
 ### Patterns directory override
 
@@ -392,9 +392,11 @@ The pattern hook resolves its catalog in this order:
 ### What this plugin never does
 
 - Modifies application source files directly. It may create/update
-  `.references/` for the reference clone.
+  `<plugin-root>/cache/effect-v4/` for the reference clone.
 - Blocks tool calls. The PostToolUse hook only feeds context back to Claude.
 - Calls the network outside the `git clone` of the reference repo.
+- Mutates your shell RC, `~/.local/bin/`, or any path outside Claude
+  Code's plugin install directory.
 
 ---
 

@@ -11,7 +11,7 @@ detector: ast
 pattern: process.env
 level: warning
 suggestSkills:
-    - effect-config
+    - config
 ---
 
 # Avoid `process.env`

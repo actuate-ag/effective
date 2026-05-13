@@ -9,7 +9,7 @@ detector: ast
 pattern: 'switch ($X) { $$$ }'
 level: warning
 suggestSkills:
-    - effect-pattern-matching
+    - pattern-matching
 ---
 
 # Use `Match` Instead of `switch`

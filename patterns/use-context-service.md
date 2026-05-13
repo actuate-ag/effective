@@ -9,7 +9,7 @@ detector: ast
 pattern: ServiceMap.Service
 level: warning
 suggestSkills:
-    - effect-service-implementation
+    - service-implementation
 ---
 
 # Use `Context.Service` Instead of `ServiceMap.Service`

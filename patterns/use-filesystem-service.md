@@ -18,7 +18,7 @@ constraints:
         regex: '^["''](?:node:)?fs["'']$'
 level: high
 suggestSkills:
-    - effect-filesystem
+    - filesystem
 ---
 
 # Use FileSystem Service Instead of `fs`

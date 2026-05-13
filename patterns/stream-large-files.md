@@ -21,7 +21,7 @@ constraints:
             - pattern: $ITEM.path
 level: info
 suggestSkills:
-    - effect-stream
+    - stream
 ---
 
 # Consider Streaming Large Files

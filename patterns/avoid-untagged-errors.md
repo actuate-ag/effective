@@ -11,7 +11,7 @@ pattern:
     - '$A instanceof Error'
 level: warning
 suggestSkills:
-    - effect-error-handling
+    - error-handling
 ---
 
 # Avoid `instanceof Error` and `new Error`

@@ -9,7 +9,7 @@ detector: ast
 pattern: JSON.$M($$$)
 level: info
 suggestSkills:
-    - effect-schema-composition
+    - schema-composition
 ---
 
 # Consider Schema JSON Codecs Instead of JSON Methods

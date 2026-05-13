@@ -9,7 +9,7 @@ detector: ast
 pattern: 'try { $$$ }'
 level: warning
 suggestSkills:
-    - effect-error-handling
+    - error-handling
 ---
 
 # Avoid `try { } catch` in Effect Code

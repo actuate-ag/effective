@@ -13,7 +13,7 @@ rule:
         stopBy: end
 level: warning
 suggestSkills:
-    - effect-testing
+    - testing
 ---
 
 # Avoid `expect()` Inside `if` Blocks

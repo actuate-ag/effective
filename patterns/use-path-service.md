@@ -18,7 +18,7 @@ constraints:
         regex: '^["''](?:node:)?path["'']$'
 level: warning
 suggestSkills:
-    - effect-path
+    - path
 ---
 
 # Use Path Service Instead of `path`

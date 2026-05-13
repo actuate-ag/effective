@@ -1,0 +1,13 @@
+{
+	"name": "effective",
+	"owner": {
+		"name": "Actuate"
+	},
+	"plugins": [
+		{
+			"name": "effective",
+			"source": "./",
+			"description": "Skills, hooks, and guidance to help Claude Code write correct, idiomatic Effect v4 TypeScript."
+		}
+	]
+}

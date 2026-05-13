@@ -7,79 +7,75 @@
  * scanner, same string/template handling.
  */
 export const stripComments = (source: string): string => {
-	const out: string[] = [];
-	let index = 0;
+  const out: string[] = [];
+  let index = 0;
 
-	const at = (current: number) => source.charAt(current);
-	const keep = () => {
-		out.push(at(index));
-		index += 1;
-	};
-	const blank = () => {
-		out.push(at(index) === '\n' ? '\n' : ' ');
-		index += 1;
-	};
+  const at = (current: number) => source.charAt(current);
+  const keep = () => {
+    out.push(at(index));
+    index += 1;
+  };
+  const blank = () => {
+    out.push(at(index) === "\n" ? "\n" : " ");
+    index += 1;
+  };
 
-	while (index < source.length) {
-		const current = at(index);
-		const next = index + 1 < source.length ? at(index + 1) : '';
+  while (index < source.length) {
+    const current = at(index);
+    const next = index + 1 < source.length ? at(index + 1) : "";
 
-		if (current === "'" || current === '"') {
-			const quote = current;
-			keep();
-			while (index < source.length && at(index) !== quote) {
-				if (at(index) === '\\' && index + 1 < source.length) {
-					keep();
-					keep();
-					continue;
-				}
-				keep();
-			}
-			if (index < source.length) keep();
-			continue;
-		}
+    if (current === "'" || current === '"') {
+      const quote = current;
+      keep();
+      while (index < source.length && at(index) !== quote) {
+        if (at(index) === "\\" && index + 1 < source.length) {
+          keep();
+          keep();
+          continue;
+        }
+        keep();
+      }
+      if (index < source.length) keep();
+      continue;
+    }
 
-		if (current === '`') {
-			keep();
-			while (index < source.length && at(index) !== '`') {
-				if (at(index) === '\\' && index + 1 < source.length) {
-					keep();
-					keep();
-					continue;
-				}
-				keep();
-			}
-			if (index < source.length) keep();
-			continue;
-		}
+    if (current === "`") {
+      keep();
+      while (index < source.length && at(index) !== "`") {
+        if (at(index) === "\\" && index + 1 < source.length) {
+          keep();
+          keep();
+          continue;
+        }
+        keep();
+      }
+      if (index < source.length) keep();
+      continue;
+    }
 
-		if (current === '/' && next === '/') {
-			blank();
-			blank();
-			while (index < source.length && at(index) !== '\n') blank();
-			continue;
-		}
+    if (current === "/" && next === "/") {
+      blank();
+      blank();
+      while (index < source.length && at(index) !== "\n") blank();
+      continue;
+    }
 
-		if (current === '/' && next === '*') {
-			blank();
-			blank();
-			while (index < source.length) {
-				if (
-					at(index) === '*' &&
-					index + 1 < source.length &&
-					at(index + 1) === '/'
-				) {
-					blank();
-					blank();
-					break;
-				}
-				blank();
-			}
-			continue;
-		}
+    if (current === "/" && next === "*") {
+      blank();
+      blank();
+      while (index < source.length) {
+        if (at(index) === "*" && index + 1 < source.length && at(index + 1) === "/") {
+          blank();
+          blank();
+          break;
+        }
+        blank();
+      }
+      continue;
+    }
 
-		keep();
-	}
+    keep();
+  }
 
-	return out.join('');
+  return out.join("");
 };

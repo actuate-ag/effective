@@ -11,7 +11,7 @@ pattern:
     - Effect.runPromise
 level: warning
 suggestSkills:
-    - effect-managed-runtime
+    - managed-runtime
 ---
 
 # Effect.runSync/runPromise Only at Entry Points

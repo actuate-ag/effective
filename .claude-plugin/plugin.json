@@ -1,9 +1,10 @@
 {
-	"name": "claude-code-effect",
+	"name": "effective",
 	"version": "0.0.1",
 	"description": "Skills, hooks, and guidance to help Claude Code write correct, idiomatic Effect v4 TypeScript.",
 	"author": {
 		"name": "Actuate"
 	},
-	"keywords": ["effect", "effect-ts", "typescript", "skills", "hooks"]
+	"keywords": ["effect", "effect-ts", "typescript", "skills", "hooks"],
+	"pinnedEffectVersion": "4.0.0-beta.59"
 }

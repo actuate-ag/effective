@@ -11,7 +11,7 @@ pattern:
     - 'yield* Effect.promise'
 level: warning
 suggestSkills:
-    - effect-error-handling
+    - error-handling
 ---
 
 # Use Effect.tryPromise Instead of Effect.promise

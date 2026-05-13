@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# effect-audit — wrapper that exec's the bun CLI from its in-repo location.
-#
-# This script is symlinked into ~/.local/bin/effect-audit by install-user.sh
-# (user mode). The symlink target stays inside the cloned claude-code-effect
-# repo, so `git pull` updates the CLI without re-running the installer.
+# effect-audit — wrapper that execs the bun script from this plugin.
+# Auto-PATHed by Claude Code while the plugin is enabled.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-exec bun run "$SCRIPT_DIR/../scripts/audit.ts" "$@"
+exec bun run "$SCRIPT_DIR/../scripts/effect-audit.ts" "$@"

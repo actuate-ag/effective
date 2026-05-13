@@ -11,7 +11,7 @@ pattern:
     - 'Date.$M($$$)'
 level: warning
 suggestSkills:
-    - effect-testing
+    - testing
 ---
 
 # Use Effect DateTime Instead of JS Date
