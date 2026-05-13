@@ -4,17 +4,13 @@ A Claude Code plugin that helps Claude write correct, clean, and
 idiomatic [Effect v4](https://effect.website) TypeScript.
 
 Adapted from [`pi-effect-harness`](https://github.com/mpsuesser/pi-effect-harness)
-for the Claude Code surface (skills, hooks, slash commands). The
-repository, plugin, marketplace, and skill namespace are all named
-`effective` — hence the redundant-looking `effective@effective` in install
-commands (which read `<plugin>@<marketplace>`).
+for the Claude Code surface (skills, hooks, slash commands).
 
 ## Table of contents
 
 - [What it ships](#what-it-ships)
 - [How it works](#how-it-works)
 - [Install](#install)
-- [The audit script](#the-audit-script)
 - [Skill catalog](#skill-catalog) (35)
 - [Pattern catalog](#pattern-catalog) (46)
 - [Configuration](#configuration)
@@ -44,12 +40,10 @@ commands (which read `<plugin>@<marketplace>`).
 - **A `codebase-guidance` skill** that's auto-invoked on any Effect v4
   codebase to brief Claude on v3→v4 renames, where the reference clone
   lives, which skills exist, and what the pattern-feedback hook does.
-- **An `effect-audit` script** that runs the same pattern catalog against
-  existing code (one file, a directory, or a whole repo) — for one-shot
-  cleanups and CI gating. The core is shared with the PostToolUse hook,
-  so any pattern that fires live also fires on audit.
 - **Slash commands** (under the `effective` namespace):
-  - `/effective:audit` — run the audit script.
+  - `/effective:audit` — run the pattern catalog across the project and
+    surface matches back to Claude. Same detector core as the PostToolUse
+    hook, applied to existing code rather than fresh edits.
   - `/effective:plugin-version` — read or update the Effect version the
     plugin pins (maintainer-side).
   - `/effective:project-version` — show the active project's installed
@@ -89,24 +83,21 @@ This repository hosts both the plugin and its marketplace (the
 `marketplace.json` at `.claude-plugin/marketplace.json` lists `effective` as a
 plugin sourced from this same repo at `./`).
 
-### From this marketplace (recommended for end users)
-
 Inside Claude Code:
 
 ```
-/plugin marketplace add <owner>/effective
+/plugin marketplace add actuate-ag/effective
 /plugin install effective@effective
 ```
 
-Replace `<owner>` with the GitHub owner where this repo is hosted. After
-install, the plugin auto-registers:
+After install, the plugin auto-registers:
 
 - 35 skills under `/effective:<name>`.
 - `SessionStart` + `PostToolUse` hooks from `hooks/hooks.json`.
 - Slash commands `/effective:audit`, `/effective:plugin-version`,
   `/effective:project-version`, `/effective:status`.
-- `bin/effect-audit` and `bin/effect-version` added to the Bash tool's
-  `PATH` for the session (no `~/.local/bin/` pollution).
+- `bin/effect-version` added to the Bash tool's `PATH` for the session
+  (no `~/.local/bin/` pollution).
 - Reference clone created lazily under the plugin's own `cache/effect-v4/`
   on first SessionStart.
 
@@ -121,62 +112,6 @@ Uninstall:
 ```
 /plugin uninstall effective@effective
 ```
-
-### Development (local clone)
-
-For working on the plugin itself, point Claude Code at a local checkout:
-
-```bash
-git clone https://github.com/<owner>/effective
-claude --plugin-dir ./effective
-```
-
-Use `/reload-plugins` inside Claude Code to pick up changes as you iterate.
-
----
-
-## The audit script
-
-`scripts/effect-audit.ts` runs the pattern catalog against existing code.
-Same detector core as the PostToolUse hook, different surface: many files,
-structured output, CI-friendly exit codes. Invoke directly via `bun run`,
-or through the `/effect-audit` slash command inside a Claude Code session.
-
-### Quick start
-
-```bash
-bun run scripts/effect-audit.ts                            # audit . (cwd)
-bun run scripts/effect-audit.ts src/                       # audit a directory
-bun run scripts/effect-audit.ts src/Foo.ts src/Bar.ts      # audit specific files
-bun run scripts/effect-audit.ts --format json              # JSON output for tooling
-bun run scripts/effect-audit.ts --min-severity high        # filter to high/critical
-bun run scripts/effect-audit.ts --exit-on critical         # CI gate: non-zero on critical
-```
-
-### Defaults
-
-| | |
-|---|---|
-| Recursion | `.ts`/`.tsx` only, recursive |
-| `.gitignore` | honored via `git ls-files --cached --others --exclude-standard` when inside a git repo; falls back to a tree walk that hard-skips `.git/`, `node_modules/`, `.references/` |
-| Symlinks | skipped by default (pass `--follow-symlinks` to include) |
-| Format | human-readable summary + per-match lines |
-| `--min-severity` | `warning` (drops the 6 noisy `info` patterns by default) |
-| `--exit-on` | `critical` (CI exits non-zero on critical hits only) |
-
-### CI integration
-
-```yaml
-# .github/workflows/effect-audit.yml
-- run: bun run scripts/effect-audit.ts --exit-on critical
-```
-
-### Inside a Claude Code session
-
-Run `/effect-audit` and Claude will execute the script, read the matches,
-and either fix them or surface them for your input. Each match includes
-the suggested `effect-*` skill, so Claude knows to load the right context
-before writing fixes.
 
 ---
 
@@ -374,20 +309,12 @@ itself always reflects the plugin pin.
 Single location, plugin-owned: `<plugin-root>/cache/effect-v4/`. Created
 on first `SessionStart` by the hook, refreshed when the plugin pin changes,
 removed cleanly when the plugin is uninstalled. The marker file
-`<plugin-root>/cache/effect-v4/.claude-code-effect-version` records the
+`<plugin-root>/cache/effect-v4/.effective-version` records the
 `effect@<version>` git tag.
 
 Skill bodies reference the cache via fixed relative paths from skill
 location (e.g. `../../cache/effect-v4/LLMS.md`); the path is stable across
 plugin installs because skills always sit at `<plugin>/skills/<name>/SKILL.md`.
-
-### Patterns directory override
-
-The pattern hook resolves its catalog in this order:
-
-1. `$CLAUDE_CODE_EFFECT_PATTERNS_DIR` (if set and exists)
-2. `${CLAUDE_PLUGIN_ROOT}/patterns` (when running as a plugin)
-3. `<hook-dir>/../patterns` (sibling of `hooks/`)
 
 ### What this plugin never does
 
@@ -401,6 +328,17 @@ The pattern hook resolves its catalog in this order:
 ---
 
 ## Development
+
+For working on the plugin itself, point Claude Code at a local checkout:
+
+```bash
+git clone https://github.com/actuate-ag/effective
+claude --plugin-dir ./effective
+```
+
+Use `/reload-plugins` inside Claude Code to pick up changes as you iterate.
+
+Local verification:
 
 ```sh
 bun install

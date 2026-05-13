@@ -44,11 +44,6 @@ const resolvePatternsDir = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
 
-  const fromEnv = yield* readEnvOption("CLAUDE_CODE_EFFECT_PATTERNS_DIR");
-  if (Option.isSome(fromEnv)) {
-    const ok = yield* fs.exists(fromEnv.value).pipe(Effect.match({ onFailure: () => false, onSuccess: (b) => b }));
-    if (ok) return fromEnv.value;
-  }
   const pluginRoot = yield* readEnvOption("CLAUDE_PLUGIN_ROOT");
   if (Option.isSome(pluginRoot)) {
     const dir = path.join(pluginRoot.value, "patterns");

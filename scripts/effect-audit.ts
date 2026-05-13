@@ -14,7 +14,7 @@
  */
 
 import { BunRuntime, BunServices } from "@effect/platform-bun";
-import { Config, Effect, FileSystem, Path, pipe } from "effect";
+import { Effect, Path, pipe } from "effect";
 import * as Arr from "effect/Array";
 import * as Option from "effect/Option";
 import { Argument, Command, Flag } from "effect/unstable/cli";
@@ -29,21 +29,8 @@ import { SEVERITY_RANK } from "../src/patterns/types.ts";
 
 const SEVERITY_VALUES = ["critical", "high", "medium", "warning", "info"] as const;
 
-const readEnvOption = (name: string): Effect.Effect<Option.Option<string>> =>
-  Effect.gen(function* () {
-    const opt = yield* Config.option(Config.string(name));
-    return Option.flatMap(opt, (s) => (s === "" ? Option.none<string>() : Option.some(s)));
-  }).pipe(Effect.match({ onFailure: () => Option.none<string>(), onSuccess: (o) => o }));
-
 const resolvePatternsDir = Effect.gen(function* () {
-  const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-
-  const fromEnv = yield* readEnvOption("CLAUDE_CODE_EFFECT_PATTERNS_DIR");
-  if (Option.isSome(fromEnv)) {
-    const ok = yield* fs.exists(fromEnv.value).pipe(Effect.match({ onFailure: () => false, onSuccess: (b) => b }));
-    if (ok) return fromEnv.value;
-  }
   const here = path.dirname(new URL(import.meta.url).pathname);
   return path.resolve(here, "..", "patterns");
 });
