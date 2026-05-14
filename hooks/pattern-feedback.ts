@@ -8,12 +8,12 @@
  */
 
 import { BunRuntime, BunServices } from "@effect/platform-bun";
-import { Config, Effect, FileSystem, HashSet, Path, Schema } from "effect";
+import { Effect, FileSystem, HashSet, Path, Schema } from "effect";
 import * as Option from "effect/Option";
 
 import { formatFeedback } from "../src/audit/format/claude-hook.ts";
 import { matchedPatternsForFile } from "../src/audit/runner.ts";
-import { loadPatterns } from "../src/patterns/load.ts";
+import { patterns } from "../src/patterns/index.ts";
 
 class HookToolInput extends Schema.Class<HookToolInput>("HookToolInput")({
   file_path: Schema.optionalKey(Schema.String)
@@ -33,26 +33,6 @@ const readStdinText: Effect.Effect<string> = Effect.tryPromise({
   try: () => Bun.stdin.text(),
   catch: () => null
 }).pipe(Effect.match({ onFailure: () => "", onSuccess: (s) => s }));
-
-const readEnvOption = (name: string): Effect.Effect<Option.Option<string>> =>
-  Effect.gen(function* () {
-    const opt = yield* Config.option(Config.string(name));
-    return Option.flatMap(opt, (s) => (s === "" ? Option.none<string>() : Option.some(s)));
-  }).pipe(Effect.match({ onFailure: () => Option.none<string>(), onSuccess: (o) => o }));
-
-const resolvePatternsDir = Effect.gen(function* () {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-
-  const pluginRoot = yield* readEnvOption("CLAUDE_PLUGIN_ROOT");
-  if (Option.isSome(pluginRoot)) {
-    const dir = path.join(pluginRoot.value, "patterns");
-    const ok = yield* fs.exists(dir).pipe(Effect.match({ onFailure: () => false, onSuccess: (b) => b }));
-    if (ok) return dir;
-  }
-  const here = path.dirname(new URL(import.meta.url).pathname);
-  return path.resolve(here, "..", "patterns");
-});
 
 const program = Effect.gen(function* () {
   const raw = yield* readStdinText;
@@ -90,8 +70,6 @@ const program = Effect.gen(function* () {
   if (Option.isNone(sourceOpt)) return;
   const source = sourceOpt.value;
 
-  const patternsDir = yield* resolvePatternsDir;
-  const patterns = yield* loadPatterns(patternsDir);
   const matched = yield* matchedPatternsForFile(patterns, toolName, filePath, source);
   if (matched.length === 0) return;
 

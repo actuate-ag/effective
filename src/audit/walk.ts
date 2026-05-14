@@ -9,14 +9,12 @@ export interface WalkOptions {
   readonly extensions: ReadonlyArray<string>;
   readonly recursive: boolean;
   readonly followSymlinks: boolean;
-  readonly respectGitignore: boolean;
 }
 
 export const defaultWalkOptions: WalkOptions = {
   extensions: DEFAULT_EXTENSIONS,
   recursive: true,
-  followSymlinks: false,
-  respectGitignore: true
+  followSymlinks: false
 };
 
 const matchesExtension = (filename: string, extensions: ReadonlyArray<string>): boolean =>

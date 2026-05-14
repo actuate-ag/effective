@@ -1,0 +1,41 @@
+import type { Pattern } from "../src/patterns/types.ts";
+
+export const pattern = {
+  name: "avoid-data-tagged-error",
+  description: "Use Schema.TaggedErrorClass instead of Data.TaggedError for serialization and RPC compatibility",
+  event: "after",
+  toolRegex: "(Edit|Write|MultiEdit|NotebookEdit)",
+  level: "warning",
+  glob: "**/*.{ts,tsx}",
+  detector: {
+    "kind": "ast",
+    "patterns": [
+      "Data.TaggedError($$$)"
+    ]
+  },
+  suggestedReferences: [
+    "references/error-handling.md"
+  ],
+  guidance: `# Use \`Schema.TaggedErrorClass\` Instead of \`Data.TaggedError\`
+
+\`\`\`haskell
+-- Transformation
+Data.TaggedError        :: String -> { fields } -> Error   -- not serializable
+Schema.TaggedErrorClass :: String -> { schemas } -> Error   -- serializable, RPC-ready
+\`\`\`
+
+\`\`\`haskell
+-- Pattern
+bad :: Error
+bad = class MyError extends Data.TaggedError("MyError")<{ message: string }>
+
+good :: Error
+good = class MyError extends Schema.TaggedErrorClass<MyError>()("MyError", {
+  message: Schema.String
+})
+\`\`\`
+
+\`Schema.TaggedErrorClass\` provides serialization, RPC compatibility, and runtime validation. \`Data.TaggedError\` lacks these — always prefer \`Schema.TaggedErrorClass\` with a \`message\` field.
+`,
+  sourcePath: import.meta.url
+} satisfies Pattern;

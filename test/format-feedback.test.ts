@@ -40,15 +40,18 @@ describe("formatFeedback", () => {
     expect(occurrences).toBe(1);
   });
 
-  it("appends suggested-skill hint when present", () => {
-    const out = formatFeedback([make({ name: "p1", suggestedSkills: ["effect-error-handling"] })], "/f.ts");
-    expect(out).toContain("effect-error-handling");
-    expect(out).toMatch(/If you have not invoked .* skill/);
+  it("appends suggested-references hint when present", () => {
+    const out = formatFeedback(
+      [make({ name: "p1", suggestedReferences: ["references/errors.md"] })],
+      "/f.ts"
+    );
+    expect(out).toContain("references/errors.md");
+    expect(out).toMatch(/For depth, see/);
   });
 
-  it("omits skill hint when no suggestions", () => {
+  it("omits references hint when no suggestions", () => {
     const out = formatFeedback([make({ name: "p1" })], "/f.ts");
-    expect(out).not.toContain("If you have not invoked");
+    expect(out).not.toContain("For depth, see");
   });
 
   it("embeds the file path", () => {

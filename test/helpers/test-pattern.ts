@@ -3,7 +3,7 @@ import { BunServices } from "@effect/platform-bun";
 import { Effect, FileSystem, Path, Schema, Scope, type PlatformError } from "effect";
 import { expect } from "vitest";
 
-import { loadPatterns } from "../../src/patterns/load.ts";
+import { patterns } from "../../src/patterns/index.ts";
 import { patternMatches } from "../../src/patterns/match.ts";
 import type { Pattern } from "../../src/patterns/types.ts";
 
@@ -12,15 +12,8 @@ class PatternNotFound extends Schema.TaggedErrorClass<PatternNotFound>()("Patter
   message: Schema.String
 }) {}
 
-const patternsDir = Effect.gen(function* () {
-  const path = yield* Path.Path;
-  return path.resolve(__dirname, "..", "..", "patterns");
-});
-
-const findPatternEffect = (name: string): Effect.Effect<Pattern, PatternNotFound, FileSystem.FileSystem | Path.Path> =>
+const findPatternEffect = (name: string): Effect.Effect<Pattern, PatternNotFound> =>
   Effect.gen(function* () {
-    const dir = yield* patternsDir;
-    const patterns = yield* loadPatterns(dir);
     const found = patterns.find((p) => p.name === name);
     return found === undefined ? yield* new PatternNotFound({ name, message: `pattern not found: ${name}` }) : found;
   });

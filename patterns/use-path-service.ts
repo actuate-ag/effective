@@ -1,0 +1,76 @@
+import type { Pattern } from "../src/patterns/types.ts";
+
+export const pattern = {
+  name: "use-path-service",
+  description: "Use Path service instead of direct Node.js path imports",
+  event: "after",
+  toolRegex: "(Edit|Write|MultiEdit|NotebookEdit)",
+  level: "warning",
+  glob: "**/*.{ts,tsx}",
+  detector: {
+    "kind": "ast",
+    "patterns": [],
+    "rules": [
+      {
+        "any": [
+          {
+            "all": [
+              {
+                "kind": "import_statement"
+              },
+              {
+                "regex": "[\"'](?:node:)?path[\"']"
+              }
+            ]
+          },
+          {
+            "pattern": "require($SPEC)"
+          },
+          {
+            "pattern": "import($SPEC)"
+          }
+        ]
+      }
+    ],
+    "constraints": {
+      "SPEC": {
+        "regex": "^[\"'](?:node:)?path[\"']$"
+      }
+    }
+  },
+  suggestedReferences: [
+    "references/path.md"
+  ],
+  guidance: `# Use Path Service Instead of \`path\`
+
+\`\`\`haskell
+-- Transformation
+import "node:path"  :: Node → Path a    -- platform-coupled
+import "path"       :: Node → Path a    -- same problem
+
+-- Instead
+Path               :: Effect Path Path  -- platform-agnostic
+\`\`\`
+
+\`\`\`haskell
+-- Pattern
+bad :: String → String → String
+bad dir file = path.join dir file      -- R = Node
+
+good :: String → String → Effect String Path
+good dir file = do
+  p ← Path.Path
+  p.join dir file                      -- R ⊃ Path, portable
+
+-- Path operations
+join      :: [String] → Effect String Path
+dirname   :: String → Effect String Path
+basename  :: String → Effect String Path
+extname   :: String → Effect String Path
+resolve   :: String → Effect String Path
+\`\`\`
+
+Direct \`path\` imports couple code to Node.js. Use \`@effect/platform\` Path for cross-platform path operations.
+`,
+  sourcePath: import.meta.url
+} satisfies Pattern;

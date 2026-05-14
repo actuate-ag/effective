@@ -13,7 +13,7 @@ export interface AuditMatch {
   readonly line: number;
   readonly column: number;
   readonly snippet: string;
-  readonly suggestedSkills: ReadonlyArray<string>;
+  readonly suggestedReferences: ReadonlyArray<string>;
 }
 
 const toAuditMatch = (pattern: Pattern, filePath: string, location: MatchLocation): AuditMatch => ({
@@ -24,7 +24,7 @@ const toAuditMatch = (pattern: Pattern, filePath: string, location: MatchLocatio
   line: location.line,
   column: location.column,
   snippet: location.snippet,
-  suggestedSkills: pattern.suggestedSkills ?? []
+  suggestedReferences: pattern.suggestedReferences ?? []
 });
 
 /**

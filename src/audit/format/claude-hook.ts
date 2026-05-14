@@ -15,14 +15,12 @@ const patternOrder = Order.combine(
 const formatSummaryLine = (p: Pattern): string => `- ${p.name} [${p.level}]: ${p.description}`;
 
 const formatGuidanceBlock = (p: Pattern): string => {
-  const skills = p.suggestedSkills ?? [];
-  const skillHint =
-    skills.length === 0
+  const refs = p.suggestedReferences ?? [];
+  const refHint =
+    refs.length === 0
       ? ""
-      : `\n\nIf you have not invoked the ${skills
-          .map((s) => `\`${s}\``)
-          .join(", ")} skill${skills.length > 1 ? "s" : ""}, do so before continuing.`;
-  return `## ${p.name}\n\n${p.guidance}${skillHint}`;
+      : `\n\nFor depth, see ${refs.map((r) => `\`${r}\``).join(", ")}.`;
+  return `## ${p.name}\n\n${p.guidance}${refHint}`;
 };
 
 const ranked = (patterns: ReadonlyArray<Pattern>): ReadonlyArray<Pattern> =>

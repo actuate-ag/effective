@@ -36,7 +36,7 @@ export interface Pattern {
   readonly ignoreGlob?: ReadonlyArray<string>;
   readonly detector: Detector;
   readonly guidance: string;
-  readonly suggestedSkills?: ReadonlyArray<string>;
+  readonly suggestedReferences?: ReadonlyArray<string>;
   readonly sourcePath: string;
 }
 

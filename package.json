@@ -14,7 +14,6 @@
 		"@types/bun": "^1.1.0",
 		"@types/node": "^22.0.0",
 		"@types/picomatch": "^4.0.3",
-		"gray-matter": "^4.0.3",
 		"oxfmt": "0.43.0",
 		"oxlint": "1.58.0",
 		"typescript": "^5.7.0",
@@ -28,7 +27,6 @@
 		"@effect/platform-bun": "4.0.0-beta.59",
 		"@effect/vitest": "4.0.0-beta.59",
 		"effect": "4.0.0-beta.59",
-		"picomatch": "^4.0.4",
-		"yaml": "^2.8.4"
+		"picomatch": "^4.0.4"
 	}
 }
