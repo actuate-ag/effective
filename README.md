@@ -59,11 +59,9 @@ Uninstall:
   `typeclass-design`, `wide-events`, `stream`, `batching`).
 - **A `SessionStart` hook** that maintains a shallow clone of
   [`Effect-TS/effect-smol`](https://github.com/Effect-TS/effect-smol) at the
-  version pinned by the plugin (`pinnedEffectVersion` in
-  `.claude-plugin/plugin.json`), under the plugin's own `cache/effect-v4/`
-  directory. Claude reads it instead of guessing v4 APIs. The hook also
-  warns when the active project's installed `effect` version drifts from
-  the plugin pin.
+  version pinned by the plugin. Claude reads it instead of guessing v4
+  APIs. The hook also warns when the active project's installed
+  `effect` version drifts from the plugin pin.
 - **A `PostToolUse` hook** that runs 46 ast-grep / regex pattern
   detectors against every successful Edit/Write/MultiEdit and surfaces
   matches back to Claude in-band — severity-sorted, deduped, each
@@ -102,9 +100,7 @@ The topic skills sit on top of a `references/` library — 35 markdown
 docs that hold the deep API surface (full rename tables, advanced
 combinators, cross-cutting primitives like `optics`,
 `pattern-matching`, `typeclass-design`, `wide-events`, `stream`,
-`batching`, `concurrency-testing`, `domain-modeling`, etc.). References
-aren't slash-commands; they're cited from topic skills and from
-pattern-hook output.
+`batching`, `concurrency-testing`, `domain-modeling`, etc.).
 
 ---
 
